@@ -22,8 +22,7 @@ from .labels import weak_label
 
 PATH = config.ARTIFACTS_DIR / "reputation.joblib"
 MEMORY_PATH = config.ARTIFACTS_DIR / "memory.json"
-TOPIC_NAMES = {"complaint.insult": "оскорбления", "complaint.cheat": "читы", "complaint.dm": "убийство без повода",
-               "complaint.scam": "обман", "complaint.rmt_ads": "рекламу и продажу"}
+NOTES_PATH = config.ARTIFACTS_DIR / "admin_notes.json"
 NICK_RE = re.compile(r"\b[A-Z][a-z]+_[A-Z][a-z]+\d{0,3}\b")
 _lock = threading.Lock()
 MIN_FILED = 5  # меньше — ещё не история, профиль не создаётся
@@ -124,6 +123,28 @@ def remember(reported_hash: str | None, category: str) -> None:
         MEMORY_PATH.write_text(json.dumps(memory, ensure_ascii=False), encoding="utf-8")
 
 
+def read_notes() -> list[dict]:
+    return json.loads(NOTES_PATH.read_text(encoding="utf-8")) if NOTES_PATH.exists() else []
+
+
+def add_note(note: dict) -> dict:
+    """Заметка админа об игроке по шаблону: ник, вид нарушения, статус, комментарий."""
+    with _lock:
+        notes = read_notes()
+        saved = {**note, "id": max((n["id"] for n in notes), default=0) + 1}
+        notes.append(saved)
+        NOTES_PATH.parent.mkdir(parents=True, exist_ok=True)
+        NOTES_PATH.write_text(json.dumps(notes, ensure_ascii=False), encoding="utf-8")
+    return saved
+
+
+def delete_note(note_id: int) -> None:
+    with _lock:
+        notes = [n for n in read_notes() if n["id"] != note_id]
+        NOTES_PATH.parent.mkdir(parents=True, exist_ok=True)
+        NOTES_PATH.write_text(json.dumps(notes, ensure_ascii=False), encoding="utf-8")
+
+
 def comment(p: dict) -> str:
     """Вывод из профиля: только то, чего не видно из чисел рядом."""
     parts = []
@@ -139,10 +160,7 @@ def comment(p: dict) -> str:
             parts.append("Жалобы на него обычно подтверждаются.")
         elif share < 0.3:
             parts.append("Жалобы на него редко подтверждаются.")
-    if p["topics"]:
-        name = TOPIC_NAMES.get(p["topics"][0]["code"], "другие нарушения")
-        parts.append(f"Чаще всего на него жалуются за {name}.")
-    return " ".join(parts) or "Истории пока мало для выводов."
+    return " ".join(parts) or "Выводов из истории пока нет."
 
 
 @lru_cache(maxsize=1)

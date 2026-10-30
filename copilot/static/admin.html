@@ -72,6 +72,9 @@
   .fact-row { display: grid; gap: 1px; color: var(--muted); }
   .fact-row b { color: var(--text); font-weight: 700; }
   .fact-note { padding-top: 8px; border-top: 1px solid var(--line); color: var(--text); }
+  .field { width: 100%; min-height: 44px; margin-top: 4px; padding: 0 12px; background: var(--raised); color: var(--text); border: 1px solid var(--line); border-radius: 2px; }
+  .form-grid label { display: block; font-size: 14px; font-weight: 600; color: var(--muted); }
+  select.pill { background: var(--paper); color: var(--text); }
   .tab { width: 100%; min-height: 56px; display: flex; align-items: center; gap: 10px; padding: 8px 10px; border-radius: 2px; border: 1px solid transparent; text-align: left; font-size: 14px; font-weight: 600; line-height: 1.25; }
   .tab:hover { background: var(--raised); }
   .tab[aria-current="true"] { border-color: var(--accent); }
@@ -129,7 +132,7 @@ const html = htm.bind(React.createElement);
 const { Send, Pencil, ArrowUpRight, Check, ShieldCheck, Languages, UserRound, Combine, Undo2, ChevronDown, Bot, Paperclip, TriangleAlert, Menu, X, Sparkles } = LucideReact;
 
 /* Живые данные: очередь и правила приходят из API сервиса (GET /api/queue), здесь нет вшитых обращений. */
-let TICKETS = [], AUTO = [], AUTO_TOTAL = 0, TOTAL_P0 = 0;
+let TICKETS = [], AUTO = [], AUTO_TOTAL = 0, TOTAL_P0 = 0, NOTES = [];
 const RULES = {};
 const SLOT = { ru: "[наказание]", kk: "[жаза]", uz: "[jazo]" };
 const PUNISH_WORD = { ru: "Наказание", kk: "Жаза", uz: "Jazo" };
@@ -145,7 +148,7 @@ const postJson = (url, body) => fetch(url, { method: "POST", headers: { "Content
 
 /* Действие админа и правка черновика — обучающий сигнал, пишется в feedback.jsonl. */
 function log(t, action) {
-  postJson("/api/feedback", { ticket_id: String(t.id), action, draft_before: t.original || "", draft_after: t.draft || "", category: t.cat || "", priority: "p" + t.p }).catch(() => {});
+  postJson("/api/feedback", { ticket_id: String(t.id), action, draft_before: t.original || "", draft_after: t.draft || "", category: t.cat || "", ai_category: t.aiCat || "", priority: "p" + t.p, reported_hash: t.reportedHash || null }).catch(() => {});
 }
 
 function toTicket(x) {
@@ -164,7 +167,7 @@ function toTicket(x) {
   const proofs = x.images ? `Вложений: ${x.images}` : (tr.extracted.has_evidence ? "Есть ссылка" : "Нет");
   return {
     id: x.id, p: Number(tr.priority.slice(1)), from: nick || `Обращение ${x.id}`, server: x.region ? x.region.toUpperCase() : (x.kind === "complaint" ? "жалоба" : "репорт"),
-    lang: tr.lang, cat: tr.category, conf: tr.confidence, kind: x.kind,
+    lang: tr.lang, cat: tr.category, aiCat: tr.category, reportedHash: x.reported_hash, conf: tr.confidence, kind: x.kind,
     text: x.messages.map((m) => (m.role === "reported_player" ? "Обвиняемый: " : "") + m.text).join("\n"),
     facts: { nick, refs: tr.extracted.rule_refs.join(", ") || "нет", proof: proofs },
     ref: rule ? rule.ref : null, chips: chips.length ? chips : null,
@@ -175,6 +178,7 @@ function toTicket(x) {
 
 async function loadQueue() {
   const data = await fetch("/api/queue").then((r) => r.json());
+  NOTES = data.notes || [];
   const all = data.items.map((x) => ({ x, t: toTicket(x) }));
   TICKETS = all.filter((a) => !a.x.auto).map((a) => a.t);
   AUTO = all.filter((a) => a.x.auto).map(({ t }) => ({ id: t.id, text: t.text, lang: t.lang, reply: t.draft, ticket: t }));
@@ -184,6 +188,7 @@ async function loadQueue() {
 
 
 const TRY_VIEW = "__try";
+const NOTES_VIEW = "__notes";
 const TYPE_NAMES = {
   "complaint.insult": "Оскорбления", "complaint.cheat": "Читы", "complaint.dm": "Убийство без повода", "complaint.scam": "Обман",
   "complaint.rmt_ads": "Реклама и продажа", "complaint.admin": "Апелляции и админы", "complaint.other": "Другие жалобы", "complaint.invalid": "Неоформленные",
@@ -295,6 +300,7 @@ function Rail({ s, activeId, openGroup, onGroup, onMenu }) {
   return html`<nav aria-label="Типы обращений" class="rail flex gap-2 bg-[var(--paper)] border-r border-[var(--line)] p-3">
     <button type="button" class="tab" onClick=${onMenu} aria-label="Открыть очередь и цели" title="Очередь и цели (Q)"><${Menu} size=${18} /><span>Вся очередь</span></button>
     <button type="button" class="tab" onClick=${() => onGroup(TRY_VIEW)} aria-current=${openGroup === TRY_VIEW}><${Sparkles} size=${18} /><span>Проверить своё</span></button>
+    <button type="button" class="tab" onClick=${() => onGroup(NOTES_VIEW)} aria-current=${openGroup === NOTES_VIEW}><${UserRound} size=${18} /><span>Профили от админа</span></button>
     ${groupsOf(s.tickets).map((g) => html`<button key=${g.cat} type="button" class="tab" onClick=${() => onGroup(g.cat)}
         aria-current=${openGroup === g.cat || (!openGroup && active && active.cat === g.cat)} aria-label=${g.name + ", обращений: " + g.items.length}>
       <span class="count" style=${{ background: P[g.p].color }}>${g.items.length}</span>
@@ -423,7 +429,7 @@ function Rule({ t, onChip, nudge, ruleOpen, onToggle }) {
 function PlayerFacts({ p }) {
   return html`<span class="facts">
     <span class="fact-row"><b>Сам подал</b><span>жалоб ${p.filed}, подтверждено ${p.filed_confirmed}</span><span>репортов ${p.reports}</span><span>всего ${p.total}</span></span>
-    <span class="fact-row"><b>На него</b><span>жалоб ${p.against}, подтверждено ${p.against_confirmed}</span><span>репортов ${p.reports_against}</span><span>всего ${p.against_total}</span></span>
+    <span class="fact-row"><b>На него</b><span>жалоб ${p.against}, подтверждено ${p.against_confirmed}</span><span>репортов ${p.reports_against}</span><span>всего ${p.against_total}</span>${p.topics.length > 0 && html`<span>за что: ${p.topics.map((x) => (TYPE_NAMES[x.code] || x.code).toLowerCase() + " " + x.count).join(", ")}</span>`}</span>
     <span class="fact-note">${p.comment}</span>
   </span>`;
 }
@@ -440,15 +446,20 @@ function ProfileBox({ title, p }) {
   </div>`;
 }
 
-function Profiles({ t }) {
+function Profiles({ t, notes }) {
   const { reporter, reported } = t.profiles;
-  if (!reporter && !reported) return null;
+  const own = notes.filter((n) => t.facts.nick && n.nick.toLowerCase() === t.facts.nick.toLowerCase());
+  if (!reporter && !reported && !own.length) return null;
   return html`<section class="card" aria-label="История игроков">
     <h3 class="label mb-3 flex items-center gap-2"><${UserRound} size=${16} /> История игроков: подсказка, решает админ</h3>
     <div class="grid gap-4 md:grid-cols-2">
       <${ProfileBox} title="Заявитель" p=${reporter} />
       <${ProfileBox} title="Обвиняемый" p=${reported} />
     </div>
+    ${own.length > 0 && html`<div class="mt-4 pt-3 border-t border-[var(--line)] grid gap-1">
+      <p class="font-semibold">Профиль от админа</p>
+      ${own.map((n) => html`<p key=${n.id} class="text-[15px]"><b>${n.status}</b> · ${(TYPE_NAMES[n.category] || n.category).toLowerCase()}${n.comment ? " · " + n.comment : ""}</p>`)}
+    </div>`}
   </section>`;
 }
 
@@ -462,7 +473,39 @@ function Generate({ t, generating, onGenerate }) {
   </section>`;
 }
 
-function Ticket({ t, editing, generating, onGenerate, seriesCount, nudge, ruleOpen, onToggleRule, onDraft, onEdit, onStopEdit, onSend, onEsc, onChip, onMerge, areaRef }) {
+/* Профиль от админа: заполняется по шаблону и потом виден в карточке игрока. */
+function NotesView({ notes, onAdd, onDelete, onBack }) {
+  const statuses = ["Наблюдение", "Предупреждён", "Рецидивист", "Проверен, всё чисто"];
+  const [form, setForm] = useState({ nick: "", category: "complaint.insult", status: statuses[0], comment: "" });
+  const set = (k) => (e) => setForm({ ...form, [k]: e.target.value });
+  const valid = form.nick.trim().length >= 3;
+  const submit = async () => { await onAdd({ ...form, nick: form.nick.trim() }); setForm({ ...form, nick: "", comment: "" }); };
+  return html`<div class="enter gutter max-w-[880px] mx-auto py-8 grid gap-5">
+    <div class="flex flex-wrap items-center gap-3">
+      <button type="button" class="chip" onClick=${onBack}><${X} size=${16} /> Закрыть <span class="key">Esc</span></button>
+      <h2 class="font-display text-[30px] font-bold leading-tight">Профили от админа</h2>
+    </div>
+    <section class="card grid gap-3 form-grid" aria-label="Новый профиль">
+      <label>Ник игрока<input class="field" value=${form.nick} onChange=${set("nick")} placeholder="Arman_Petrov" /></label>
+      <label>Вид нарушения<select class="field" value=${form.category} onChange=${set("category")}>
+        ${Object.entries(TYPE_NAMES).filter(([code]) => code.startsWith("complaint.")).map(([code, name]) => html`<option key=${code} value=${code}>${name}</option>`)}
+      </select></label>
+      <label>Статус<select class="field" value=${form.status} onChange=${set("status")}>${statuses.map((x) => html`<option key=${x}>${x}</option>`)}</select></label>
+      <label>Комментарий<input class="field" value=${form.comment} onChange=${set("comment")} maxLength="500" /></label>
+      <button type="button" class="btn btn-main" disabled=${!valid} onClick=${submit}>Сохранить профиль</button>
+    </section>
+    <section class="grid gap-2" aria-label="Сохранённые профили">
+      ${notes.length === 0 && html`<p class="text-mute">Пока нет профилей от админов.</p>`}
+      ${notes.map((n) => html`<div key=${n.id} class="row card-row">
+        <span class="min-w-0 flex-1"><span class="block font-semibold">${n.nick}: ${n.status}</span>
+        <span class="block text-sm text-mute">${TYPE_NAMES[n.category] || n.category}${n.comment ? " · " + n.comment : ""}</span></span>
+        <button type="button" class="chip" onClick=${() => onDelete(n.id)}>Удалить</button>
+      </div>`)}
+    </section>
+  </div>`;
+}
+
+function Ticket({ t, editing, generating, onGenerate, notes, onType, seriesCount, nudge, ruleOpen, onToggleRule, onDraft, onEdit, onStopEdit, onSend, onEsc, onChip, onMerge, areaRef }) {
   const needsPunish = t.draft.includes(SLOT[t.lang]);
   useLayoutEffect(() => {
     const el = areaRef.current;
@@ -489,7 +532,13 @@ function Ticket({ t, editing, generating, onGenerate, seriesCount, nudge, ruleOp
       ${t.facts.proof !== "Нет" && html`<p class="mt-3 flex items-center gap-2 text-[15px] text-mute"><${Paperclip} size=${16} /> ${t.facts.proof}</p>`}
     </section>
     <${Trace} t=${t} />
-    <${Profiles} t=${t} />
+    <div class="flex flex-wrap items-center gap-3">
+      <label for="ticketType" class="label">Вид обращения, решает админ</label>
+      <select id="ticketType" class="pill" value=${t.cat} onChange=${(e) => onType(e.target.value)}>
+        ${Object.entries(TYPE_NAMES).filter(([code]) => code.startsWith(t.kind + ".")).map(([code, name]) => html`<option key=${code} value=${code}>${name}</option>`)}
+      </select>
+    </div>
+    <${Profiles} t=${t} notes=${notes} />
     <section class=${"card draft-card" + (editing ? " editing" : "")}>
       <label for="draft" class="label block mb-2">Черновик ответа, ${LANG[t.lang]}${editing ? " · Ctrl+Enter отправить, Esc выйти" : ""}</label>
       <textarea id="draft" ref=${areaRef} class="draft" rows="2" readOnly=${!editing} value=${t.draft} onChange=${(e) => onDraft(e.target.value)} onClick=${onEdit} onBlur=${onStopEdit}></textarea>
@@ -558,6 +607,15 @@ function App() {
   const [activeId, setActiveId] = useState(TICKETS[0] ? TICKETS[0].id : null);
   const [generating, setGenerating] = useState(null);
   const [groupOpen, setGroupOpen] = useState(null);
+  const [notes, setNotes] = useState(NOTES);
+  const addNote = async (note) => {
+    const saved = await postJson("/api/notes", note).then((r) => r.json());
+    setNotes((x) => [...x, saved]);
+  };
+  const deleteNote = async (id) => {
+    await fetch("/api/notes/" + id, { method: "DELETE" });
+    setNotes((x) => x.filter((n) => n.id !== id));
+  };
   const [drawer, setDrawer] = useState(false);
   const [autoOpen, setAutoOpen] = useState(false);
   const [ruleOpen, setRuleOpen] = useState(false);
@@ -724,10 +782,10 @@ function App() {
     <${Header} s=${s} />
     <${Flow} />
     <div class="layout">
-      <${Rail} s=${s} activeId=${activeId} openGroup=${groupOpen === TRY_VIEW ? TRY_VIEW : group ? group.cat : null} onGroup=${setGroupOpen} onMenu=${() => setDrawer(!drawer)} />
+      <${Rail} s=${s} activeId=${activeId} openGroup=${groupOpen === TRY_VIEW || groupOpen === NOTES_VIEW ? groupOpen : group ? group.cat : null} onGroup=${setGroupOpen} onMenu=${() => setDrawer(!drawer)} />
       <main class="main min-w-0">
-        ${groupOpen === TRY_VIEW ? html`<${TryView} onBack=${() => setGroupOpen(null)} />` : group ? html`<${GroupView} g=${group} onPick=${pick} onBack=${() => setGroupOpen(null)} />` : active
-          ? html`<${Ticket} t=${active} editing=${editing} generating=${generating} onGenerate=${generate} seriesCount=${seriesCount} nudge=${nudge} areaRef=${areaRef} ruleOpen=${ruleOpen} onToggleRule=${() => setRuleOpen(!ruleOpen)}
+        ${groupOpen === TRY_VIEW ? html`<${TryView} onBack=${() => setGroupOpen(null)} />` : groupOpen === NOTES_VIEW ? html`<${NotesView} notes=${notes} onAdd=${addNote} onDelete=${deleteNote} onBack=${() => setGroupOpen(null)} />` : group ? html`<${GroupView} g=${group} onPick=${pick} onBack=${() => setGroupOpen(null)} />` : active
+          ? html`<${Ticket} t=${active} editing=${editing} generating=${generating} onGenerate=${generate} notes=${notes} onType=${(cat) => patchActive((t) => ({ ...t, cat }))} seriesCount=${seriesCount} nudge=${nudge} areaRef=${areaRef} ruleOpen=${ruleOpen} onToggleRule=${() => setRuleOpen(!ruleOpen)}
               onDraft=${(v) => patchActive((t) => ({ ...t, draft: v, edited: true }))} onEdit=${edit} onStopEdit=${() => setEditing(false)}
               onSend=${send} onEsc=${escalate} onChip=${applyChip} onMerge=${merge} />`
           : html`<${Cleared} s=${s} onUndo=${undo} canUndo=${!!toast} />`}

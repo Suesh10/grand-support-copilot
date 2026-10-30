@@ -13,7 +13,7 @@ from pathlib import Path
 
 from fastapi import APIRouter, HTTPException
 from fastapi.responses import FileResponse
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 from . import config, llm, reputation
 from .normalize import normalize
@@ -70,8 +70,8 @@ def load_queue() -> tuple:
             "triage": pred,
             "rules": [c for c in (rule_card(r) for r in refs) if c],
             "series": series.get(t.get("reported_nick"), 1),
-            "profiles": {"reporter": reputation.profile(t.get("reporter_hash")),
-                         "reported": reputation.profile(t.get("reported_hash"))},
+            "reporter_hash": t.get("reporter_hash"),
+            "reported_hash": t.get("reported_hash"),
             "auto": not pred["needs_human"],
         })
     items.sort(key=lambda x: (PRIORITY_ORDER.get(x["triage"]["priority"], 9), not x["triage"]["needs_human"]))
@@ -83,8 +83,10 @@ class Feedback(BaseModel):
     action: str  # send | edit | escalate | undo | merge
     draft_before: str = ""
     draft_after: str = ""
-    category: str = ""
+    category: str = ""  # вид обращения: админ мог поменять то, что определил ИИ
+    ai_category: str = ""
     priority: str = ""
+    reported_hash: str | None = None
 
 
 @router.get("/admin")
@@ -94,8 +96,10 @@ def admin_page() -> FileResponse:
 
 @router.get("/api/queue")
 def api_queue() -> dict:
-    items = list(load_queue())
-    return {"items": items, "llm": llm.enabled()}
+    # Профили считаем при каждом запросе: они меняются от решений админа.
+    items = [{**x, "profiles": {"reporter": reputation.profile(x["reporter_hash"]),
+                                "reported": reputation.profile(x["reported_hash"])}} for x in load_queue()]
+    return {"items": items, "llm": llm.enabled(), "notes": reputation.read_notes()}
 
 
 class TranslateRequest(BaseModel):
@@ -135,6 +139,26 @@ def api_feedback(fb: Feedback) -> dict:
     record = {**fb.model_dump(), "edited": fb.draft_before != fb.draft_after, "ts": int(time.time())}
     with open(FEEDBACK_PATH, "a", encoding="utf-8") as f:
         f.write(json.dumps(record, ensure_ascii=False) + "\n")
+    if fb.action == "send" and fb.category.startswith("complaint."):
+        reputation.remember(fb.reported_hash, fb.category)
+    return {"ok": True}
+
+
+class Note(BaseModel):
+    nick: str = Field(min_length=3, max_length=40)
+    category: str
+    status: str
+    comment: str = Field(default="", max_length=500)
+
+
+@router.post("/api/notes")
+def api_add_note(note: Note) -> dict:
+    return reputation.add_note(note.model_dump())
+
+
+@router.delete("/api/notes/{note_id}")
+def api_delete_note(note_id: int) -> dict:
+    reputation.delete_note(note_id)
     return {"ok": True}
 
 

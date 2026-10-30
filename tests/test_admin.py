@@ -45,7 +45,8 @@ def test_profile_separates_own_and_against_and_comment_adds_new_info():
     assert p["comment"].startswith("Его жалобы редко подтверждаются.")
     assert not any(ch.isdigit() for ch in p["comment"])
     accused = reputation.profile("demo-accused-1")
-    assert "Жалобы на него обычно подтверждаются." in accused["comment"] and "оскорбления" in accused["comment"]
+    assert accused["comment"] == "Жалобы на него обычно подтверждаются."
+    assert accused["topics"][0] == {"code": "complaint.insult", "count": 11}
 
 
 def test_appeal_is_not_counted_against_player():
@@ -61,6 +62,28 @@ def test_memory_accumulates_and_survives(tmp_path, monkeypatch):
         reputation.remember("new-player", "complaint.insult")
     p = reputation.profile("new-player")
     assert p["new"] == 5 and p["topics"][0] == {"code": "complaint.insult", "count": 5}
+
+
+def test_admin_type_goes_to_profile(tmp_path, monkeypatch):
+    from copilot import reputation
+    monkeypatch.setattr(reputation, "MEMORY_PATH", tmp_path / "memory.json")
+    monkeypatch.setattr(admin, "FEEDBACK_PATH", tmp_path / "feedback.jsonl")
+    body = {"ticket_id": "x", "action": "send", "category": "complaint.cheat", "ai_category": "complaint.dm", "reported_hash": "h1"}
+    client.post("/api/feedback", json=body)
+    assert reputation.read_memory()["h1"]["topics"] == {"complaint.cheat": 1}
+    client.post("/api/feedback", json={**body, "action": "escalate", "reported_hash": "h2"})
+    assert "h2" not in reputation.read_memory()
+
+
+def test_admin_notes_template(tmp_path, monkeypatch):
+    from copilot import reputation
+    monkeypatch.setattr(reputation, "NOTES_PATH", tmp_path / "notes.json")
+    r = client.post("/api/notes", json={"nick": "Arman_Petrov", "category": "complaint.insult", "status": "Наблюдение", "comment": "тест"})
+    note = r.json()
+    assert note["id"] == 1 and client.get("/api/queue").json()["notes"][0]["nick"] == "Arman_Petrov"
+    assert client.post("/api/notes", json={"nick": "x", "category": "c", "status": "s"}).status_code == 422
+    client.delete(f"/api/notes/{note['id']}")
+    assert client.get("/api/queue").json()["notes"] == []
 
 
 def test_admin_page_served():
