@@ -1,5 +1,63 @@
 {
-  "demo-reporter-1": {"filed": 24, "reports": 6, "criteria": [{"name": "нарушение подтверждено", "count": 17}, {"name": "мало доказательств", "count": 4}, {"name": "нарушения не нашли", "count": 2}], "against": 1, "against_confirmed": 0},
-  "demo-reporter-2": {"filed": 31, "reports": 12, "criteria": [{"name": "нарушения не нашли", "count": 16}, {"name": "мало доказательств", "count": 9}, {"name": "нарушение подтверждено", "count": 3}], "against": 7, "against_confirmed": 4},
-  "demo-accused-1": {"filed": 2, "reports": 1, "criteria": [{"name": "нарушение подтверждено", "count": 1}], "against": 14, "against_confirmed": 9}
+  "demo-reporter-1": {
+    "filed": 24,
+    "reports": 6,
+    "criteria": [
+      {
+        "name": "нарушение подтверждено",
+        "count": 17
+      },
+      {
+        "name": "мало доказательств",
+        "count": 4
+      },
+      {
+        "name": "нарушения не нашли",
+        "count": 2
+      }
+    ],
+    "against": 1,
+    "against_confirmed": 0
+  },
+  "demo-reporter-2": {
+    "filed": 31,
+    "reports": 12,
+    "criteria": [
+      {
+        "name": "нарушения не нашли",
+        "count": 16
+      },
+      {
+        "name": "мало доказательств",
+        "count": 9
+      },
+      {
+        "name": "нарушение подтверждено",
+        "count": 3
+      }
+    ],
+    "against": 7,
+    "against_confirmed": 4,
+    "topics": {
+      "complaint.dm": 4
+    },
+    "reports_against": 2
+  },
+  "demo-accused-1": {
+    "filed": 2,
+    "reports": 1,
+    "criteria": [
+      {
+        "name": "нарушение подтверждено",
+        "count": 1
+      }
+    ],
+    "against": 14,
+    "against_confirmed": 9,
+    "topics": {
+      "complaint.insult": 11,
+      "complaint.dm": 2
+    },
+    "reports_against": 5
+  }
 }

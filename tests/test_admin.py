@@ -28,7 +28,7 @@ def test_queue_shows_profiles_as_facts():
 def test_short_history_has_no_profile():
     from copilot import reputation
     assert reputation.profile("no-such-player") is None
-    data = reputation.build([{"kind": "complaint", "reporter_hash": "a", "reported_hash": "b", "verdict": "approved", "messages": []}])
+    data = reputation.build([{"kind": "complaint", "reporter_hash": "a", "reported_hash": "b", "verdict": "approved", "violation": "2.1 ОП", "messages": []}])
     assert data["filed"]["a"]["approved"] == 1 and data["against"]["b"]["total"] == 1
 
 
@@ -36,6 +36,29 @@ def test_profile_never_changes_the_answer():
     from copilot.pipeline import triage
     req = {"kind": "complaint", "messages": [{"text": "оскорбил меня, скрин", "attachments": 1}]}
     assert triage(req) == triage({**req, "reporter_hash": "demo-reporter-2"})
+
+
+def test_profile_tags_and_comment_come_from_numbers():
+    from copilot import reputation
+    p = reputation.profile("demo-reporter-2")
+    assert p["total"] == 43 and "часто жалуется" in p["tags"] and "жалобы редко подтверждаются" in p["tags"]
+    assert "3 из 31" in p["comment"]
+    assert "на него часто жалуются" in reputation.profile("demo-accused-1")["tags"]
+
+
+def test_appeal_is_not_counted_against_player():
+    from copilot import reputation
+    t = {"kind": "complaint", "reporter_hash": "a", "reported_hash": "admin", "verdict": "appeal_rejected", "messages": []}
+    assert "admin" not in reputation.build([t])["against"]
+
+
+def test_memory_accumulates_and_survives(tmp_path, monkeypatch):
+    from copilot import reputation
+    monkeypatch.setattr(reputation, "MEMORY_PATH", tmp_path / "memory.json")
+    for _ in range(5):
+        reputation.remember("new-player", "complaint.insult")
+    p = reputation.profile("new-player")
+    assert p["new"] == 5 and p["topics"][0] == {"code": "complaint.insult", "count": 5}
 
 
 def test_admin_page_served():

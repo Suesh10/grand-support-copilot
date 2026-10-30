@@ -8,7 +8,7 @@ from fastapi.responses import RedirectResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 
-from . import __version__, llm, model, retrieve
+from . import __version__, llm, model, reputation, retrieve
 from .admin import router as admin_router
 from .dedupe import Deduper
 from .pipeline import triage
@@ -63,4 +63,7 @@ def health() -> dict:
 def triage_endpoint(req: TriageRequest) -> dict:
     request = req.model_dump()
     request["is_duplicate"] = _dedupe.is_duplicate(request)
-    return triage(request)
+    result = triage(request)
+    if req.kind == "complaint":
+        reputation.remember(req.reported_hash, result["category"])
+    return result

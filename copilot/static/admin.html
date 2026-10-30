@@ -65,6 +65,12 @@
   .flow li { display: flex; align-items: center; gap: 8px; }
   .flow-n { width: 22px; height: 22px; display: grid; place-items: center; border-radius: 999px; background: var(--accent); color: var(--on-accent); font-size: 13px; font-weight: 700; }
   .try-row { display: grid; grid-template-columns: 170px minmax(0, 1fr); gap: 12px; }
+  .has-tip { position: relative; cursor: help; border-bottom: 1px dotted var(--muted); }
+  .tip { display: none; position: absolute; left: 0; top: 100%; z-index: 30; width: 300px; margin-top: 6px; padding: 12px 14px; background: var(--raised); border: 1px solid var(--line); border-radius: 2px; font-family: "Onest", system-ui, sans-serif; font-size: 14px; font-weight: 400; line-height: 1.4; }
+  .has-tip:hover .tip, .has-tip:focus .tip { display: block; }
+  .tip-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+  .tip-grid span { display: grid; color: var(--muted); font-size: 13px; }
+  .tip-grid b { color: var(--text); font-size: 20px; }
   .tab { width: 100%; min-height: 56px; display: flex; align-items: center; gap: 10px; padding: 8px 10px; border-radius: 2px; border: 1px solid transparent; text-align: left; font-size: 14px; font-weight: 600; line-height: 1.25; }
   .tab:hover { background: var(--raised); }
   .tab[aria-current="true"] { border-color: var(--accent); }
@@ -412,12 +418,30 @@ function Rule({ t, onChip, nudge, ruleOpen, onToggle }) {
 
 /* Админ выбирает исход, ИИ пишет черновик по тексту обращения; текст остаётся редактируемым. */
 /* История игрока — подсказка: только факты, решение и выводы за администратором. */
+const topicNames = (p) => p.topics.map((x) => (TYPE_NAMES[x.code] || x.code) + " " + x.count).join(", ");
+const readable = (p) => p.comment.replace(/Чаще всего жалуются на: [\w.]+\./, p.topics.length ? "Чаще всего жалуются на: " + (TYPE_NAMES[p.topics[0].code] || p.topics[0].code).toLowerCase() + "." : "");
+
+/* Карточка при наведении: сколько всего обращений и что о нём уже известно. */
+function PlayerTip({ p, label }) {
+  return html`<span class="has-tip" tabindex="0">${label}
+    <span class="tip" role="tooltip">
+      <span class="tip-grid">
+        <span><b class="num">${p.filed}</b>жалоб</span><span><b class="num">${p.reports}</b>репортов</span><span><b class="num">${p.total}</b>всего</span>
+      </span>
+      <span class="block mt-2">На него: жалоб ${p.against}, репортов ${p.reports_against}${p.new ? ", новых " + p.new : ""}</span>
+      ${p.tags.length > 0 && html`<span class="block mt-2 font-semibold">${p.tags.join(" · ")}</span>`}
+      <span class="block mt-2 text-mute">${readable(p)}</span>
+    </span>
+  </span>`;
+}
+
 function ProfileBox({ title, p }) {
   if (!p) return null;
   return html`<div class="min-w-0">
-    <p class="font-semibold">${title}${p.demo ? " (пример)" : ""}</p>
-    <p class="text-[15px] text-mute">Подал жалоб: ${p.filed}, репортов: ${p.reports}. На него жалоб: ${p.against}, подтверждено: ${p.against_confirmed}.</p>
-    <ul class="text-[15px] mt-1">${p.criteria.slice(0, 4).map((c) => html`<li key=${c.name}>${c.name}: <b class="num">${c.count}</b></li>`)}</ul>
+    <p class="font-semibold"><${PlayerTip} p=${p} label=${title + (p.demo ? " (пример)" : "")} /></p>
+    ${p.tags.length > 0 && html`<div class="flex flex-wrap gap-1 mt-1">${p.tags.map((x) => html`<span key=${x} class="pill">${x}</span>`)}</div>`}
+    <p class="text-[15px] text-mute mt-1">${readable(p)}</p>
+    ${p.topics.length > 0 && html`<p class="text-[15px] mt-1">Память: ${topicNames(p)}</p>`}
   </div>`;
 }
 
@@ -455,7 +479,7 @@ function Ticket({ t, editing, generating, onGenerate, seriesCount, nudge, ruleOp
         <${Badge} p=${t.p} />
         <span class="text-sm text-mute"><span class="font-code">#${t.id}</span> · ${t.server}</span>
       </div>
-      <h2 class="font-display text-[30px] font-bold leading-tight break-words">${t.from}</h2>
+      <h2 class="font-display text-[30px] font-bold leading-tight break-words">${t.profiles.reported ? html`<${PlayerTip} p=${t.profiles.reported} label=${t.from} />` : t.from}</h2>
     </div>
     ${seriesCount > 0 && html`<div class="flex flex-wrap items-center gap-3 rounded-[2px] border border-[var(--line)] bg-[var(--paper)] px-5 py-3">
       <${Combine} size=${20} class="flex-none" />
