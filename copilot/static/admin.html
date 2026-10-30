@@ -141,7 +141,7 @@ function toTicket(x) {
     const cut = line.indexOf(":");
     const group = cut > 0 ? line.slice(0, cut).trim() : "Наказание";
     const value = cut > 0 ? line.slice(cut + 1).trim() : line;
-    (groups[group] = groups[group] || []).push({ label: value, ins: `${word}: ${value}.`, insRu: `Наказание: ${value}.` });
+    (groups[group] = groups[group] || []).push({ label: value, ins: value, insRu: value });
   });
   const chips = Object.entries(groups).map(([group, items]) => ({ group, items }));
   const proofs = x.images ? `Вложений: ${x.images}` : (tr.extracted.has_evidence ? "Есть ссылка" : "Нет");
@@ -412,14 +412,16 @@ function Toast({ toast, onUndo }) {
 function setChip(t, chip) {
   const slot = SLOT[t.lang], prev = t.chipData;
   const next = prev && prev.label === chip.label ? null : chip;
-  const swap = (text, oldV, newV) => {
+  const word = PUNISH_WORD[t.lang] || PUNISH_WORD.ru;
+  const swap = (text, oldV, newV, label = word) => {
     if (text.includes(oldV)) return text.replace(oldV, newV);
     // Наказание ставим перед подписью, а не после неё.
     const sign = text.search(/\n+\s*(С уважением|Hurmat bilan|Құрметпен)/i);
-    return sign > 0 ? `${text.slice(0, sign)} ${newV}${text.slice(sign)}` : `${text} ${newV}`;
+    const line = `${label}: ${newV}.`;
+    return sign > 0 ? `${text.slice(0, sign)} ${line}${text.slice(sign)}` : `${text} ${line}`;
   };
   const draft = swap(t.draft, prev ? prev.ins : slot, next ? next.ins : slot);
-  const draftRu = t.draftRu ? swap(t.draftRu, prev ? prev.insRu : SLOT.ru, next ? next.insRu : SLOT.ru) : t.draftRu;
+  const draftRu = t.draftRu ? swap(t.draftRu, prev ? prev.insRu : SLOT.ru, next ? next.insRu : SLOT.ru, PUNISH_WORD.ru) : t.draftRu;
   return { ...t, draft, draftRu, chip: next ? next.label : null, chipData: next };
 }
 

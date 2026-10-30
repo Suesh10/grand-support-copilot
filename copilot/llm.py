@@ -71,8 +71,18 @@ def translate(text: str) -> str | None:
         return None
 
 
+PUNISH_SLOT = {"ru": "[наказание]", "kk": "[жаза]", "uz": "[jazo]"}
+ADMIN_DECISION = {
+    "approved": "жалоба одобрена, нарушение подтверждено. Срок наказания не называй: вместо него напиши {slot}, его выберет администратор",
+    "need_evidence": "нужны дополнительные доказательства",
+    "rejected": "нарушения нет, жалоба отклонена. Не пиши про нехватку доказательств",
+    "invalid_format": "жалоба оформлена неверно",
+    "duplicate": "это дубликат уже поданной жалобы",
+}
+
+
 def build_prompt(kind: str, lang: str, category: str, verdict: str | None, text: str,
-                 nickname: str | None, refs: list[str], examples: list[str]) -> str:
+                 nickname: str | None, refs: list[str], examples: list[str], decided: bool = False) -> str:
     points = load_points()
     rules_block = "\n".join(f"- {r}: {points[r].text[:350]}" for r in refs if r in points) or "- (нет подходящих пунктов)"
     examples_block = "\n".join(f"- {e[:400]}" for e in examples[:3]) or "- (нет)"
@@ -80,6 +90,9 @@ def build_prompt(kind: str, lang: str, category: str, verdict: str | None, text:
     hint = f"\nВероятный исход по похожим случаям: {verdict}." if verdict and category not in CATEGORY_HINTS else ""
     if category in CATEGORY_HINTS:
         hint += f"\nВажно: {CATEGORY_HINTS[category]}"
+    if decided and verdict in ADMIN_DECISION:
+        slot = PUNISH_SLOT.get(lang, PUNISH_SLOT["ru"])
+        hint = f"\nРешение администратора, напиши ответ строго по нему: {ADMIN_DECISION[verdict].format(slot=slot)}."
     return (
         f"Тип обращения: {'жалоба на игрока' if kind == 'complaint' else 'репорт из игры'}. Категория: {category}.{hint}\n"
         f"Ник обвиняемого: {nickname or 'не указан'}.\n"
@@ -91,14 +104,14 @@ def build_prompt(kind: str, lang: str, category: str, verdict: str | None, text:
 
 
 def draft(kind: str, lang: str, category: str, verdict: str | None, text: str,
-          nickname: str | None, refs: list[str], examples: list[str]) -> dict | None:
+          nickname: str | None, refs: list[str], examples: list[str], decided: bool = False) -> dict | None:
     """Черновик от LLM или None при ошибке/таймауте. В ответе есть служебное поле _meta."""
     global _CLIENT
     if not enabled():
         return None
     from google.genai import types
 
-    prompt = build_prompt(kind, lang, category, verdict, text, nickname, refs, examples)
+    prompt = build_prompt(kind, lang, category, verdict, text, nickname, refs, examples, decided)
     started = time.perf_counter()
     try:
         _CLIENT = _CLIENT or _client()

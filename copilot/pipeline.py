@@ -93,7 +93,7 @@ def triage_full(request: dict, verdict_override: str | None = None) -> tuple[dic
             adapt_reply(c["reply"], c.get("reported_nick"), facts["nickname"])
             for c in retrieve.similar(kind, text, k=3, verdict=verdict, lang=lang)]
         result = llm.draft(kind, lang if lang in llm.LANG_NAMES else "ru", category, verdict, text,
-                           facts["nickname"], refs, examples)
+                           facts["nickname"], refs, examples, decided=bool(verdict_override))
         if result and "_error" not in result:
             meta.update(result.pop("_meta"), draft_source="llm")
             if result.pop("needs_human"):
