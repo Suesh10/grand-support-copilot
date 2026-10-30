@@ -1,10 +1,17 @@
 """Категория, приоритет и спам.
 
-Сейчас заглушка на ключевых словах. В блоке 3 заменяется обученной моделью
-(TF-IDF + логистическая регрессия), ключевые слова останутся запасным вариантом.
+Основной путь — обученная модель (copilot/model.py). Ключевые слова — запасной
+вариант, если модель не обучена, и страховка для критичных категорий:
+взлом и платежи нельзя пропустить, даже если модель уверена в другом.
 """
 
 import re
+
+from . import model
+from .labels import REPORT_RULES
+
+CRITICAL_REPORT = {"report.account", "report.payment"}
+P0_RE = re.compile(r"взлом|украл[иа]? акк|убью|найду тебя|суицид|у всех|массов|сервер упал|никто не может", re.I)
 
 KEYWORDS = {
     "complaint.cheat": r"чит|soft|софт|аим|aim|wh\b|вх\b|летает|спидхак|cheat|hack",
@@ -43,12 +50,20 @@ def is_empty(text: str) -> bool:
     return len(text.strip()) < 3 or bool(EMPTY_RE.match(text.strip()))
 
 
-def classify(kind: str, text: str, has_evidence: bool) -> tuple[str, str, float]:
+def classify(kind: str, text: str, has_evidence: bool, rule_refs_raw: str = "") -> tuple[str, str, float]:
     """Вернуть (категория, приоритет, уверенность)."""
     t = text.lower()
     category, conf = None, 0.4
+    predicted = model.predict(kind, text, rule_refs_raw)
     if kind == "report" and is_empty(t):
-        category, conf = "report.offtopic", 0.8
+        category, conf = "report.offtopic", 0.9
+    elif predicted:
+        category, conf = predicted
+        if kind == "report":
+            for cat, rx in REPORT_RULES:
+                if cat in CRITICAL_REPORT and rx.search(text):
+                    category, conf = cat, max(conf, 0.7)
+                    break
     else:
         for cat, pattern in KEYWORDS.items():
             if cat.split(".")[0] != kind and not (kind == "report" and cat.startswith("complaint")):
@@ -65,4 +80,9 @@ def classify(kind: str, text: str, has_evidence: bool) -> tuple[str, str, float]
     # Жалоба с доказательствами важнее, без доказательств — ниже (taxonomy.json).
     if kind == "complaint" and not has_evidence and priority in ("p1", "p2"):
         priority = "p3"
+    # Жалоба с доказательствами на серьёзное нарушение — высокий приоритет.
+    if kind == "complaint" and has_evidence and category in ("complaint.cheat", "complaint.scam", "complaint.rmt_ads"):
+        priority = "p1"
+    if P0_RE.search(t):
+        priority = "p0"
     return category, priority, conf

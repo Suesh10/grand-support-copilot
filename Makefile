@@ -12,12 +12,15 @@ IN ?= $(COPILOT_DATA_DIR)/tickets_valid.jsonl
 OUT ?= artifacts/pred.jsonl
 PORT ?= 8000
 
-.PHONY: install serve predict test
+.PHONY: install train serve predict test
 
 install:
 	python -m venv .venv
 	$(VENV_PY) -m pip install -q --upgrade pip
 	$(VENV_PY) -m pip install -q -r requirements.txt
+
+train:
+	$(PY) scripts/train.py
 
 serve:
 	$(PY) -m uvicorn copilot.api:app --host 0.0.0.0 --port $(PORT)

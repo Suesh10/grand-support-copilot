@@ -22,7 +22,7 @@ def triage(request: dict) -> dict:
 
     lang = detect_lang(first_player)
     facts = extract(text, attachments, request.get("rule_refs_raw", ""))
-    category, priority, confidence = clf.classify(kind, text, facts["has_evidence"])
+    category, priority, confidence = clf.classify(kind, text, facts["has_evidence"], request.get("rule_refs_raw") or "")
     is_spam = kind == "report" and clf.is_empty(text)
 
     reasons = guard.check(category, text)
