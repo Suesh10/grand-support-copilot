@@ -4,6 +4,7 @@ from contextlib import asynccontextmanager
 from pathlib import Path
 
 from fastapi import FastAPI
+from fastapi.responses import RedirectResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 
@@ -44,6 +45,11 @@ class TriageRequest(BaseModel):
     reporter_hash: str | None = None
     reported_hash: str | None = None
     created_at: str | None = None
+
+
+@app.get("/", include_in_schema=False)
+def home() -> RedirectResponse:
+    return RedirectResponse("/admin")
 
 
 @app.get("/health")

@@ -13,6 +13,11 @@ from copilot.api import app  # noqa: E402
 client = TestClient(app)
 
 
+def test_home_opens_admin():
+    r = client.get("/", follow_redirects=False)
+    assert r.status_code == 307 and r.headers["location"] == "/admin"
+
+
 def test_admin_page_served():
     r = client.get("/admin")
     assert r.status_code == 200 and "Support Copilot" in r.text
