@@ -39,3 +39,11 @@ def test_feedback_saved_with_edit_flag(tmp_path, monkeypatch):
     record = json.loads(path.read_text(encoding="utf-8"))
     assert record["edited"] is True
     assert client.get("/api/stats").json() == {"total": 1, "sent": 1, "edited": 1, "escalated": 0}
+
+
+def test_generate_under_admin_verdict():
+    r = client.post("/api/generate/demo-01", json={"verdict": "need_evidence"})
+    body = r.json()
+    assert r.status_code == 200 and body["draft_reply"]["text"]
+    assert client.post("/api/generate/demo-01", json={"verdict": "ban_everyone"}).status_code == 422
+    assert client.post("/api/generate/nope", json={"verdict": "approved"}).status_code == 404

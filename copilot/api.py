@@ -1,8 +1,10 @@
 """HTTP-сервис: POST /triage по контракту из ТЗ."""
 
 from contextlib import asynccontextmanager
+from pathlib import Path
 
 from fastapi import FastAPI
+from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 
 from . import __version__, llm, model, retrieve
@@ -21,6 +23,7 @@ async def lifespan(_: FastAPI):
 
 app = FastAPI(title="Support Copilot", version=__version__, lifespan=lifespan)
 app.include_router(admin_router)
+app.mount("/static", StaticFiles(directory=Path(__file__).parent / "static"), name="static")
 
 
 class Message(BaseModel):

@@ -7,6 +7,7 @@
 
 import json
 import re
+import sys
 from dataclasses import dataclass
 from functools import lru_cache
 
@@ -53,8 +54,12 @@ class RulePoint:
 
 @lru_cache(maxsize=1)
 def load_points() -> dict[str, RulePoint]:
-    data = json.loads(config.RULES_PATH.read_text(encoding="utf-8"))
     points: dict[str, RulePoint] = {}
+    if not config.RULES_PATH.exists():
+        print(f"ВНИМАНИЕ: нет {config.RULES_PATH}. Без правил черновики будут без цитат; "
+              "укажите папку данных: DATA=путь/к/handout", file=sys.stderr)
+        return points
+    data = json.loads(config.RULES_PATH.read_text(encoding="utf-8"))
     for rule in data["rules"]:
         code = SECTION_CODES.get(rule["id"])
         if not code:

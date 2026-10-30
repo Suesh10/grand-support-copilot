@@ -39,8 +39,11 @@ def player_text(messages: list[dict]) -> str:
     return " \n".join(normalize(m.get("text", "")) for m in messages if m.get("role") != "admin")
 
 
-def triage_full(request: dict) -> tuple[dict, dict]:
-    """Ответ по контракту + служебные данные (источник черновика, токены, стоимость, задержка)."""
+def triage_full(request: dict, verdict_override: str | None = None) -> tuple[dict, dict]:
+    """Ответ по контракту + служебные данные (источник черновика, токены, стоимость, задержка).
+
+    verdict_override: админ сам выбрал исход и просит черновик под него, шаблоны репортов не применяются.
+    """
     kind = request.get("kind", "report")
     messages = request.get("messages", [])
     text = player_text(messages)
@@ -61,17 +64,17 @@ def triage_full(request: dict) -> tuple[dict, dict]:
     meta = {"draft_source": None}
     draft = None
     # Типовые репорты на русском: частый ответ админов, без LLM и бесплатно.
-    if kind == "report" and category not in ALWAYS_TEMPLATE and lang in ("ru", "und"):
+    if kind == "report" and category not in ALWAYS_TEMPLATE and lang in ("ru", "und") and not verdict_override:
         template = retrieve.report_template(category)
         if template:
             draft, meta["draft_source"] = {"lang": "ru", "text": template, "cited": []}, "template"
     # Репорты на казахском и узбекском: шаблон носителя языка, тоже без LLM.
-    if kind == "report" and lang in templates.BY_LANG:
+    if kind == "report" and lang in templates.BY_LANG and not verdict_override:
         template = templates.get(lang, templates.REPORT_SITUATION.get(category, "senior"))
         if template:
             draft, meta["draft_source"] = {"lang": lang, "text": template, "cited": []}, "template"
 
-    verdict = likely_verdict(kind, category, text, rule_refs_raw)
+    verdict = verdict_override or likely_verdict(kind, category, text, rule_refs_raw)
     allowed = relevant_refs(category, facts)
     if draft is None and llm.enabled():
         refs = facts["rule_refs"] + sorted(r for r in allowed if r not in facts["rule_refs"])

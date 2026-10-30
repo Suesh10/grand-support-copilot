@@ -2,232 +2,611 @@
 <html lang="ru">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Support Copilot — очередь админа</title>
-<style>
-/* Вся тема здесь: чтобы сменить стиль, достаточно поменять переменные. */
-:root {
-  --bg: #f6f6f4; --surface: #ffffff; --border: #dfdfda; --text: #1d1d1b; --muted: #5f5f58;
-  --accent: #1f5fbf; --accent-text: #ffffff; --danger: #b3261e; --warn-bg: #fff4d6; --warn-text: #7a5200;
-  --p0: #b3261e; --p1: #b86200; --p2: #1f5fbf; --p3: #5f5f58;
-  --radius: 8px; --font: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
-  --mono: ui-monospace, Consolas, monospace;
-}
-* { box-sizing: border-box; }
-body { margin: 0; background: var(--bg); color: var(--text); font: 15px/1.5 var(--font); }
-header { display: flex; flex-wrap: wrap; gap: 16px; align-items: center; padding: 10px 20px; background: var(--surface); border-bottom: 1px solid var(--border); }
-header b { font-size: 16px; }
-.muted { color: var(--muted); }
-.hint { margin-left: auto; font: 12px var(--mono); color: var(--muted); }
-.layout { display: flex; flex-wrap: wrap; align-items: stretch; min-height: calc(100vh - 50px); }
-nav { flex: 1 1 300px; max-width: 380px; border-right: 1px solid var(--border); background: var(--surface); }
-main { flex: 999 1 560px; min-width: 0; padding: 20px 28px; display: flex; flex-direction: column; gap: 14px; max-width: 980px; }
-.group { padding: 10px 14px 4px; font-size: 12px; font-weight: 700; color: var(--muted); text-transform: uppercase; }
-.row { display: flex; gap: 10px; width: 100%; padding: 10px 14px; border: 0; border-left: 3px solid transparent; background: none; color: inherit; font: inherit; text-align: left; cursor: pointer; }
-.row:hover { background: var(--bg); }
-.row[aria-current="true"] { border-left-color: var(--accent); background: var(--bg); }
-.row .t { display: block; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.row .m { display: block; font-size: 12px; color: var(--muted); }
-.row > span:last-child { min-width: 0; }
-.prio { flex: none; height: fit-content; padding: 1px 6px; border-radius: 4px; color: #fff; font: 700 11px var(--mono); text-transform: uppercase; }
-.prio.p0 { background: var(--p0); } .prio.p1 { background: var(--p1); } .prio.p2 { background: var(--p2); } .prio.p3 { background: var(--p3); }
-.tag { padding: 2px 8px; border: 1px solid var(--border); border-radius: 999px; font-size: 12px; background: var(--surface); }
-.tag.warn { background: var(--warn-bg); border-color: transparent; color: var(--warn-text); }
-.line { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
-h1 { margin: 0; font-size: 20px; }
-.card { padding: 12px 16px; background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); }
-.card h2 { margin: 0 0 6px; font-size: 12px; color: var(--muted); text-transform: uppercase; }
-.card p { margin: 0; }
-.tr { margin-top: 6px; color: var(--accent); font-size: 14px; }
-.ref { font: 700 14px var(--mono); }
-.chips { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
-.chip { min-height: 36px; padding: 4px 12px; border: 1px solid var(--border); border-radius: 999px; background: var(--surface); color: inherit; font: inherit; font-size: 13px; cursor: pointer; }
-.chip:hover { border-color: var(--accent); }
-.banner { padding: 10px 14px; background: var(--warn-bg); color: var(--warn-text); border-radius: var(--radius); }
-textarea { width: 100%; min-height: 110px; padding: 12px; border: 1px solid var(--border); border-radius: var(--radius); background: var(--surface); color: inherit; font: inherit; resize: vertical; }
-button.act { min-height: 44px; padding: 0 20px; border: 1px solid var(--border); border-radius: var(--radius); background: var(--surface); color: inherit; font: inherit; font-weight: 600; cursor: pointer; }
-button.act.primary { background: var(--accent); border-color: var(--accent); color: var(--accent-text); }
-button.act.danger { color: var(--danger); border-color: var(--danger); }
-kbd { font: 11px var(--mono); opacity: .7; }
-#toast { position: fixed; left: 50%; bottom: 20px; transform: translateX(-50%); display: none; gap: 14px; align-items: center; padding: 10px 16px; background: var(--text); color: var(--bg); border-radius: var(--radius); }
-#toast button { background: none; border: 0; color: inherit; font: inherit; font-weight: 700; text-decoration: underline; cursor: pointer; min-height: 32px; }
-:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
-</style>
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 </head>
 <body>
-<header>
-  <b>Support Copilot</b>
-  <span class="muted" id="counts"></span>
-  <span class="hint">↑↓ тикеты · Enter отправить · E править · X эскалировать</span>
-</header>
-<div class="layout">
-  <nav aria-label="Очередь" id="queue"></nav>
-  <main id="detail"><p class="muted">Загрузка очереди…</p></main>
-</div>
-<div id="toast" role="status"><span id="toastText"></span><button type="button" id="undo">Отменить</button></div>
-
+<title>Support Copilot Grand Mobile</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600&family=Onest:wght@400;500;600;700&display=swap">
+<script src="/static/vendor/tailwind.js"></script>
 <script>
-const LANGS = { ru: 'русский', kk: 'казахский', uz: 'узбекский', en: 'английский', es: 'испанский', pt: 'португальский', und: 'не определён' };
-let items = [], done = new Map(), currentId = null, drafts = {}, lastAction = null, toastTimer = null;
-
-const $ = (id) => document.getElementById(id);
-function el(tag, props = {}, ...children) {
-  const node = Object.assign(document.createElement(tag), props);
-  for (const c of children) if (c != null) node.append(c);
-  return node;
-}
-const open = () => items.filter((x) => !done.has(x.id));
-const manual = () => open().filter((x) => !x.auto);
-const auto = () => open().filter((x) => x.auto);
-const preview = (x) => (x.messages[0]?.text || '').slice(0, 60);
-const draftOf = (x) => drafts[x.id] ?? x.triage.draft_reply.text;
-
-function row(x) {
-  const b = el('button', { type: 'button', className: 'row', onclick: () => select(x.id) },
-    el('span', { className: 'prio ' + x.triage.priority, textContent: x.triage.priority }),
-    el('span', {}, el('span', { className: 't', textContent: preview(x) }),
-      el('span', { className: 'm', textContent: `${x.triage.category} · ${x.triage.lang}${x.series > 1 ? ' · серия ×' + x.series : ''}` })));
-  b.setAttribute('aria-current', x.id === currentId);
-  return b;
-}
-
-function renderQueue() {
-  const q = $('queue'); q.replaceChildren();
-  q.append(el('div', { className: 'group', textContent: `Нужен человек · ${manual().length}` }));
-  manual().forEach((x) => q.append(row(x)));
-  q.append(el('div', { className: 'group', textContent: `Можно автоматически · ${auto().length}` }));
-  auto().forEach((x) => q.append(row(x)));
-  $('counts').textContent = `в очереди ${open().length} · обработано ${done.size}`;
-}
-
-function applyPunishment(x, text) {
-  const value = text.split(':').slice(1).join(':').trim() || text;
-  const base = draftOf(x).replace(/\n?Наказание: .*$/m, '').trimEnd();
-  drafts[x.id] = `${base}\nНаказание: ${value}.`;
-  renderDetail();
-}
-
-function renderDetail() {
-  const d = $('detail'); d.replaceChildren();
-  const x = items.find((i) => i.id === currentId);
-  if (!x) { d.append(el('p', { className: 'muted', textContent: 'Очередь пуста.' })); return; }
-  const t = x.triage;
-
-  d.append(el('div', { className: 'line' },
-    el('h1', { textContent: t.category }),
-    el('span', { className: 'prio ' + t.priority, textContent: t.priority }),
-    el('span', { className: 'tag', textContent: LANGS[t.lang] || t.lang }),
-    el('span', { className: 'tag' + (t.confidence < 0.7 ? ' warn' : ''), textContent: 'уверенность ' + t.confidence }),
-    t.is_spam_or_duplicate ? el('span', { className: 'tag', textContent: 'пусто / спам' }) : null,
-    t.needs_human ? el('span', { className: 'tag warn', textContent: 'нужен человек' }) : null));
-
-  if (x.series > 1) {
-    d.append(el('div', { className: 'banner line' },
-      el('span', { textContent: `На ${t.extracted.nickname} всего ${x.series} жалобы в очереди.` }),
-      el('button', { type: 'button', className: 'chip', textContent: 'Объединить серию', onclick: () => mergeSeries(x) })));
-  }
-
-  const player = el('section', { className: 'card' }, el('h2', { textContent: `Игрок${x.images ? ' · вложений: ' + x.images : ''}` }));
-  x.messages.forEach((m) => player.append(el('p', { textContent: (m.role === 'reported_player' ? 'Обвиняемый: ' : '') + m.text })));
-  const trPlayer = el('p', { className: 'tr', hidden: true });
-  player.append(trPlayer);
-  d.append(player);
-
-  const facts = t.extracted;
-  d.append(el('div', { className: 'line muted' },
-    el('span', { textContent: `Ник: ${facts.nickname || '—'}` }),
-    el('span', { textContent: `Пункты: ${facts.rule_refs.join(', ') || '—'}` }),
-    el('span', { textContent: `Доказательства: ${facts.has_evidence ? 'есть' : 'нет'}` })));
-
-  x.rules.forEach((r) => {
-    const chips = el('div', { className: 'chips' });
-    r.punishments.forEach((p) => chips.append(el('button', { type: 'button', className: 'chip', textContent: p, onclick: () => applyPunishment(x, p) })));
-    d.append(el('section', { className: 'card' }, el('span', { className: 'ref', textContent: r.ref + ' ✓ ' }),
-      el('span', { className: 'muted', textContent: r.section }), el('p', { textContent: r.text }), r.punishments.length ? chips : null));
-  });
-
-  const ta = el('textarea', { id: 'draft', value: draftOf(x), oninput: (e) => { drafts[x.id] = e.target.value; } });
-  ta.setAttribute('aria-label', 'Черновик ответа');
-  const trDraft = el('p', { className: 'tr', hidden: true });
-  d.append(el('section', {}, el('label', { htmlFor: 'draft', className: 'muted', textContent: `Черновик (${t.draft_reply.lang})` }), ta, trDraft));
-
-  if (t.reasons.length) d.append(el('p', { className: 'muted', style: 'margin:0', textContent: 'Почему человек: ' + t.reasons.join('; ') }));
-
-  const btn = (label, key, cls, fn) => { const b = el('button', { type: 'button', className: 'act ' + cls, onclick: fn }, label + ' ', el('kbd', { textContent: key })); return b; };
-  d.append(el('div', { className: 'line' },
-    btn('Отправить', 'Enter', 'primary', () => act('send')),
-    btn('Править', 'E', '', () => ta.focus()),
-    btn('Эскалировать', 'X', 'danger', () => act('escalate'))));
-
-  if (t.lang === 'kk' || t.lang === 'uz') {
-    fetch('/api/translate/' + encodeURIComponent(x.id)).then((r) => r.json()).then((tr) => {
-      if (x.id !== currentId) return;
-      if (tr.player) { trPlayer.textContent = 'Перевод: ' + tr.player; trPlayer.hidden = false; }
-      if (tr.draft) { trDraft.textContent = 'Что отправим: ' + tr.draft; trDraft.hidden = false; }
-    }).catch(() => {});
-  }
-}
-
-function select(id) { currentId = id; renderQueue(); renderDetail(); }
-
-function log(x, action) {
-  fetch('/api/feedback', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({
-    ticket_id: x.id, action, draft_before: x.triage.draft_reply.text, draft_after: draftOf(x),
-    category: x.triage.category, priority: x.triage.priority }) });
-}
-
-function act(action) {
-  const x = items.find((i) => i.id === currentId);
-  if (!x) return;
-  const list = open(), idx = list.findIndex((i) => i.id === x.id);
-  const next = list[idx + 1] || list[idx - 1];
-  done.set(x.id, action); log(x, action); lastAction = x;
-  currentId = next ? next.id : null;
-  renderQueue(); renderDetail();
-  showToast(action === 'send' ? 'Отправлено' : 'Передано старшему');
-}
-
-function mergeSeries(x) {
-  const nick = x.triage.extracted.nickname;
-  const same = open().filter((i) => i.id !== x.id && i.triage.extracted.nickname === nick);
-  same.forEach((i) => { done.set(i.id, 'merge'); log(i, 'merge'); });
-  x.series = 1; renderQueue(); renderDetail();
-  showToast(`Объединено жалоб: ${same.length + 1}`);
-  lastAction = null;
-}
-
-function showToast(text) {
-  $('toastText').textContent = text;
-  $('undo').hidden = !lastAction;
-  $('toast').style.display = 'flex';
-  clearTimeout(toastTimer);
-  toastTimer = setTimeout(() => { $('toast').style.display = 'none'; lastAction = null; }, 5000);
-}
-
-$('undo').onclick = () => {
-  if (!lastAction) return;
-  done.delete(lastAction.id); log(lastAction, 'undo');
-  $('toast').style.display = 'none';
-  select(lastAction.id); lastAction = null;
-};
-
-document.addEventListener('keydown', (e) => {
-  const typing = e.target.tagName === 'TEXTAREA';
-  if (e.key === 'Escape' && typing) { e.target.blur(); return; }
-  if (e.key === 'Enter' && e.ctrlKey) { e.preventDefault(); act('send'); return; }
-  if (typing || e.target.tagName === 'BUTTON' && e.key === 'Enter') return;
-  const list = open(), idx = list.findIndex((i) => i.id === currentId);
-  if (e.key === 'ArrowDown' && list[idx + 1]) { e.preventDefault(); select(list[idx + 1].id); }
-  else if (e.key === 'ArrowUp' && list[idx - 1]) { e.preventDefault(); select(list[idx - 1].id); }
-  else if (e.key === 'Enter') { e.preventDefault(); act('send'); }
-  else if (e.key.toLowerCase() === 'x' || e.key.toLowerCase() === 'ч') act('escalate');
-  else if (e.key.toLowerCase() === 'e' || e.key.toLowerCase() === 'у') { e.preventDefault(); $('draft')?.focus(); }
-});
-
-fetch('/api/queue').then((r) => r.json()).then((data) => {
-  items = data.items;
-  select(manual()[0]?.id ?? open()[0]?.id ?? null);
-});
+  tailwind.config = {
+    theme: {
+      extend: {
+        colors: { sky: "var(--sky)", ink: "var(--text)", mute: "var(--muted)", warnt: "var(--warn)", dangert: "var(--danger)" },
+        fontFamily: {
+          display: ['"Onest"', "system-ui", "sans-serif"],
+          sans: ['"Onest"', "system-ui", "sans-serif"],
+          code: ['"JetBrains Mono"', "Consolas", "monospace"],
+        },
+      },
+    },
+  };
 </script>
+<style>
+  /* Спокойный пульт Grand Mobile: острые углы, одно обращение по центру, очередь круглыми метками, остальное по запросу.
+     Жёлтый логотипа только у главного действия и активного тикета, цвета приоритетов приглушены. */
+  :root {
+    color-scheme: dark;
+    --header: #080807; --sky: #111214; --paper: #1A1C1F; --raised: #25282C; --line: #3A3E44;
+    --text: #F2F3F5; --muted: #A6ACB5; --accent: #E0B414; --on-accent: #111214;
+    --p0: #FF7A66; --p1: #F5A53A; --p2: #C9B8F0; --p3: #7DB7F0;
+    --ok: #5FCF9A; --warn: #E8B04A; --danger: #FF7A66;
+  }
+  html, body { height: 100%; }
+  body { background: var(--sky); color: var(--text); font-family: "Onest", system-ui, sans-serif; font-size: 16px; line-height: 1.6; }
+  #root { height: 100%; }
+  .gutter { padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); }
+  .num { font-variant-numeric: tabular-nums; }
+  .label { font-size: 13px; font-weight: 600; letter-spacing: .03em; color: var(--muted); }
+  .card { background: var(--paper); border: 1px solid var(--line); border-radius: 4px; padding: 28px; }
+  :focus-visible { outline: 3px solid var(--accent); outline-offset: 2px; }
+
+  .btn { min-height: 56px; display: inline-flex; align-items: center; justify-content: center; gap: 10px; padding: 0 26px; border-radius: 999px; border: 1px solid var(--line); font-weight: 700; background: var(--paper); transition: background-color 120ms, transform 80ms; }
+  .btn:hover { background: var(--raised); }
+  .btn:active { transform: translateY(1px); }
+  .btn-main { background: var(--accent); color: var(--on-accent); border-color: var(--accent); }
+  .btn-main:hover { background: #EFC63A; }
+  .btn-danger { color: var(--danger); }
+  .key { font-family: "JetBrains Mono", monospace; font-size: 12px; font-weight: 600; line-height: 1; padding: 5px 7px; border-radius: 2px; border: 1px solid currentColor; }
+
+  .badge { display: inline-flex; align-items: center; height: 32px; padding: 0 14px; border-radius: 2px; color: var(--on-accent); font-size: 14px; font-weight: 700; white-space: nowrap; }
+  .pill { display: inline-flex; align-items: center; gap: 6px; min-height: 36px; padding: 0 14px; border-radius: 999px; border: 1px solid var(--line); background: var(--paper); font-size: 14px; font-weight: 500; max-width: 100%; }
+  .pill-final { background: var(--raised); color: var(--accent); font-weight: 700; }
+  .pill-low { color: var(--warn); font-weight: 700; }
+
+  .sticker { width: 52px; height: 52px; flex: none; display: grid; place-items: center; border-radius: 999px; color: var(--on-accent); font-size: 15px; font-weight: 700; transition: transform 120ms; }
+  .sticker:hover { transform: scale(1.06); }
+  .sticker[aria-current="true"] { outline: 3px solid var(--accent); outline-offset: 3px; }
+
+  .row { width: 100%; text-align: left; min-height: 64px; padding: 10px 12px; display: flex; align-items: center; gap: 12px; border-radius: 2px; border: 1px solid transparent; }
+  .row:hover { background: var(--raised); }
+  .row[aria-current="true"] { border-color: var(--line); }
+
+  .chip { min-height: 48px; padding: 0 18px; display: inline-flex; align-items: center; gap: 10px; border-radius: 999px; border: 1px solid var(--line); background: var(--paper); font-weight: 600; transition: background-color 100ms; }
+  .chip:hover { background: var(--raised); }
+  .chip[aria-pressed="true"] { background: var(--accent); color: var(--on-accent); border-color: var(--accent); }
+
+  .bar { height: 8px; border-radius: 999px; border: 1px solid var(--line); background: var(--paper); overflow: hidden; }
+  .bar > i { display: block; height: 100%; background: var(--accent); transition: width 280ms ease-out; }
+
+  .ticket { grid-template-columns: minmax(0, 1fr); width: 100%; }
+  .rail { scrollbar-width: none; }
+  @media (hover: none) { .player-card { display: none; } }
+  .enter { animation: enter 160ms ease-out; }
+  @keyframes enter { from { opacity: 0; transform: translateY(6px); } }
+  .nudge { animation: nudge 240ms ease-out; }
+  @keyframes nudge { 25% { transform: translateX(-4px); } 75% { transform: translateX(4px); } }
+
+  textarea.draft { width: 100%; resize: none; overflow: hidden; background: transparent; color: var(--text); padding: 0; border: 0; font-size: 19px; line-height: 1.6; }
+  .draft-card.editing { border-color: var(--accent); }
+
+  @media (min-width: 760px) {
+    .app { height: 100%; }
+    .layout { display: grid; grid-template-columns: 92px minmax(0, 1fr); min-height: 0; flex: 1; }
+    .rail { overflow-y: auto; min-height: 0; flex-direction: column; }
+    .main { overflow-y: auto; min-height: 0; }
+    .drawer { left: 92px; width: 380px; }
+  }
+  @media (max-width: 759px) {
+    .rail { overflow-x: auto; }
+    .card { padding: 20px; }
+    .drawer { left: 0; width: 100%; }
+    .hide-phone { display: none; }
+  }
+  @media (prefers-reduced-motion: reduce) { *, *::before, *::after { animation: none !important; transition: none !important; } }
+</style>
+
+<div id="root"></div>
+
+<script src="/static/vendor/react.js"></script>
+<script src="/static/vendor/react-dom.js"></script>
+<script src="/static/vendor/htm.js"></script>
+<script>window.react = window.React;</script>
+<script src="/static/vendor/lucide-react.js"></script>
+<script>
+const { useState, useEffect, useLayoutEffect, useRef, useMemo } = React;
+const html = htm.bind(React.createElement);
+const { Send, Pencil, ArrowUpRight, Check, ShieldCheck, Languages, UserRound, Combine, Undo2, ChevronDown, Bot, Paperclip, TriangleAlert, Menu, X, Sparkles } = LucideReact;
+
+/* Живые данные: очередь и правила приходят из API сервиса (GET /api/queue), здесь нет вшитых обращений. */
+let TICKETS = [], AUTO = [], AUTO_TOTAL = 0, TOTAL_P0 = 0;
+const RULES = {};
+const SLOT = { ru: "[наказание]", kk: "[жаза]", uz: "[jazo]" };
+const PUNISH_WORD = { ru: "Наказание", kk: "Жаза", uz: "Jazo" };
+const VERDICTS = [
+  { id: "approved", label: "Одобрить" },
+  { id: "need_evidence", label: "Нужны доказательства" },
+  { id: "rejected", label: "Нарушения нет" },
+  { id: "invalid_format", label: "Оформлена неверно" },
+  { id: "duplicate", label: "Дубликат" },
+];
+
+const postJson = (url, body) => fetch(url, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
+
+/* Действие админа и правка черновика — обучающий сигнал, пишется в feedback.jsonl. */
+function log(t, action) {
+  postJson("/api/feedback", { ticket_id: String(t.id), action, draft_before: t.original || "", draft_after: t.draft || "", category: t.cat || "", priority: "p" + t.p }).catch(() => {});
+}
+
+function toTicket(x) {
+  const tr = x.triage, nick = tr.extracted.nickname;
+  const word = PUNISH_WORD[tr.lang] || PUNISH_WORD.ru;
+  const rule = x.rules[0];
+  x.rules.forEach((r) => { RULES[r.ref] = { title: r.section, text: r.text, ladder: r.punishments }; });
+  const groups = {};
+  (rule ? rule.punishments : []).forEach((line) => {
+    const cut = line.indexOf(":");
+    const group = cut > 0 ? line.slice(0, cut).trim() : "Наказание";
+    const value = cut > 0 ? line.slice(cut + 1).trim() : line;
+    (groups[group] = groups[group] || []).push({ label: value, ins: `${word}: ${value}.`, insRu: `Наказание: ${value}.` });
+  });
+  const chips = Object.entries(groups).map(([group, items]) => ({ group, items }));
+  const proofs = x.images ? `Вложений: ${x.images}` : (tr.extracted.has_evidence ? "Есть ссылка" : "Нет");
+  return {
+    id: x.id, p: Number(tr.priority.slice(1)), from: nick || `Обращение ${x.id}`, server: x.region ? x.region.toUpperCase() : (x.kind === "complaint" ? "жалоба" : "репорт"),
+    lang: tr.lang, cat: tr.category, conf: tr.confidence, kind: x.kind,
+    text: x.messages.map((m) => (m.role === "reported_player" ? "Обвиняемый: " : "") + m.text).join("\n"),
+    facts: { nick, refs: tr.extracted.rule_refs.join(", ") || "нет", proof: proofs },
+    ref: rule ? rule.ref : null, chips: chips.length ? chips : null,
+    draft: tr.draft_reply.text, original: tr.draft_reply.text, human: tr.reasons,
+    series: x.series > 1 ? nick : null,
+  };
+}
+
+async function loadQueue() {
+  const data = await fetch("/api/queue").then((r) => r.json());
+  const all = data.items.map((x) => ({ x, t: toTicket(x) }));
+  TICKETS = all.filter((a) => !a.x.auto).map((a) => a.t);
+  AUTO = all.filter((a) => a.x.auto).map(({ t }) => ({ id: t.id, text: t.text, lang: t.lang, reply: t.draft, ticket: t }));
+  AUTO_TOTAL = AUTO.length;
+  TOTAL_P0 = TICKETS.filter((t) => t.p === 0).length;
+}
+
+
+const P = [
+  { name: "Критично", color: "var(--p0)" },
+  { name: "Срочно", color: "var(--p1)" },
+  { name: "Обычно", color: "var(--p2)" },
+  { name: "Вопрос", color: "var(--p3)" },
+];
+const LANG = { ru: "RU", kk: "KK", uz: "UZ", en: "EN", es: "ES", pt: "PT", und: "?" };
+const LOW_CONF = 0.7;
+const initials = (nick) => nick.split("_").map((w) => w[0]).join("");
+
+const Badge = ({ p }) => html`<span class="badge" style=${{ background: P[p].color }}>P${p} · ${P[p].name}</span>`;
+const Bar = ({ value, total }) => html`<div class="bar"><i style=${{ width: (total ? (value / total) * 100 : 0) + "%" }}></i></div>`;
+
+/* Положите файл design/logo.png: он заменит текстовое название. */
+function Logo() {
+  const [failed, setFailed] = useState(false);
+  if (failed) return html`<span class="font-display text-[20px] font-bold leading-none">Grand Mobile</span>`;
+  return html`<img src="logo.png" alt="Grand Mobile" class="h-11 w-auto mix-blend-lighten" onError=${() => setFailed(true)} />`;
+}
+
+function Header({ s, onMenu }) {
+  const closed = s.sent + s.escalated;
+  return html`<header class="gutter bg-[var(--header)] border-b border-[var(--line)] py-4 flex flex-wrap items-center gap-x-6 gap-y-2">
+    <${Logo} />
+    <p class="flex-1 min-w-[240px] text-[15px]"><b>Support Copilot.</b> ИИ сортирует обращения и готовит ответ по правилам, решение всегда за админом.</p>
+    <div class="flex items-center gap-3">
+      <span class="num font-semibold text-[15px]">${closed} из ${TICKETS.length}</span>
+      <div class="w-[120px]"><${Bar} value=${closed} total=${TICKETS.length} /></div>
+    </div>
+  </header>`;
+}
+
+function PlayerCard({ t, top, left }) {
+  const low = t.conf < LOW_CONF;
+  return html`<div role="tooltip" class="player-card fixed z-30 w-[320px] rounded-[2px] border border-[var(--line)] bg-[var(--raised)] p-4 pointer-events-none" style=${{ top, left }}>
+    <div class="flex items-center justify-between gap-2">
+      <p class="font-bold text-[17px] truncate">${t.from}</p>
+      <span class="badge flex-none" style=${{ background: P[t.p].color, height: 26, fontSize: 13, padding: "0 10px" }}>P${t.p}</span>
+    </div>
+    <p class="text-sm text-mute">${t.server} · ${LANG[t.lang]}</p>
+    <p class="font-code text-xs text-mute mt-2">${t.cat}</p>
+    <p class="text-[15px] mt-2 line-clamp-3">${t.textRu || t.text}</p>
+    ${t.facts.nick && html`<p class="text-sm text-mute mt-2">Жалоба на ${t.facts.nick}</p>`}
+    <div class="mt-2 flex flex-wrap gap-x-3 text-sm">
+      ${t.human.length > 0 && html`<span class="inline-flex items-center gap-1"><${UserRound} size=${14} /> Нужен человек</span>`}
+      ${low && html`<span class="inline-flex items-center gap-1 text-warnt"><${TriangleAlert} size=${14} /> Низкая уверенность</span>`}
+    </div>
+  </div>`;
+}
+
+function Rail({ s, activeId, onPick, onMenu }) {
+  const [hover, setHover] = useState(null);
+  const shown = hover && s.tickets.find((t) => t.id === hover.id);
+  const show = (id, el) => {
+    const r = el.getBoundingClientRect();
+    setHover({ id, top: Math.max(8, Math.min(r.top, window.innerHeight - 250)), left: Math.min(el.closest("nav").getBoundingClientRect().right + 8, window.innerWidth - 336) });
+  };
+  return html`<nav aria-label="Очередь" class="rail flex gap-3 items-center bg-[var(--paper)] border-r border-[var(--line)] p-4 md:px-0" onScroll=${() => setHover(null)}>
+    <button type="button" class="sticker" style=${{ color: "var(--text)", border: "1px solid var(--line)" }} onClick=${onMenu} aria-label="Открыть очередь и цели" title="Очередь и цели (Q)"><${Menu} size=${20} /></button>
+    ${s.tickets.map((t) => html`<button key=${t.id} type="button" class="sticker" data-row=${t.id} aria-current=${t.id === activeId} aria-label=${"P" + t.p + " " + t.from + ", " + t.cat} style=${{ background: P[t.p].color }} onClick=${() => onPick(t.id)} onMouseEnter=${(e) => show(t.id, e.currentTarget)} onMouseLeave=${() => setHover(null)} onFocus=${(e) => show(t.id, e.currentTarget)} onBlur=${() => setHover(null)}>${initials(t.from)}</button>`)}
+    ${shown && html`<${PlayerCard} key=${shown.id} t=${shown} top=${hover.top} left=${hover.left} />`}
+  </nav>`;
+}
+
+function Goal({ title, value, total, done, onClick, hint }) {
+  return html`<button type="button" onClick=${onClick} aria-pressed=${done} class="w-full min-h-[52px] text-left rounded-[2px] px-3 py-2 hover:bg-[var(--raised)]">
+    <span class="flex items-center justify-between gap-2 text-[15px]">
+      <span class=${"truncate " + (done ? "font-bold" : "")}>${title}</span>
+      ${done ? html`<${Check} size=${18} class="flex-none" />` : html`<span class="num font-code text-xs text-mute flex-none">${hint}</span>`}
+    </span>
+    <span class="block mt-1"><${Bar} value=${value} total=${total} /></span>
+  </button>`;
+}
+
+function Drawer({ s, activeId, goals, autoOpen, onAuto, onCheck, onPick, onClose }) {
+  return html`<aside class="drawer enter fixed top-0 bottom-0 z-20 bg-[var(--paper)] border-r border-[var(--line)] overflow-y-auto p-5 grid gap-6 content-start">
+    <div class="flex items-center justify-between">
+      <h2 class="font-display text-lg font-bold">Очередь</h2>
+      <button type="button" class="chip" onClick=${onClose}><${X} size=${16} /> Закрыть <span class="key">Q</span></button>
+    </div>
+    <div class="grid gap-1">
+      ${s.tickets.map((t) => html`<button key=${t.id} type="button" class="row" aria-current=${t.id === activeId} onClick=${() => onPick(t.id)}>
+        <span class="sticker" style=${{ background: P[t.p].color, width: 40, height: 40, fontSize: 13 }}>${initials(t.from)}</span>
+        <span class="min-w-0 flex-1">
+          <span class="block font-semibold truncate">${t.from}</span>
+          <span class="block font-code text-xs text-mute truncate">${t.cat} ${LANG[t.lang]}</span>
+        </span>
+              </button>`)}
+    </div>
+    <div>
+      <button type="button" onClick=${onAuto} aria-expanded=${autoOpen} class="w-full min-h-[52px] px-3 flex items-center gap-2 text-left text-[15px] rounded-[2px] hover:bg-[var(--raised)]">
+        <${Bot} size=${18} class="flex-none" />
+        <span class="flex-1"><b>${AUTO_TOTAL}</b> отвечено автоматически: проверить выборочно</span>
+        <span class="key">A</span>
+        <${ChevronDown} size=${16} class=${"flex-none " + (autoOpen ? "rotate-180" : "")} />
+      </button>
+      ${autoOpen && html`<ul class="px-3 pt-2 grid gap-4">
+        ${AUTO.map((a) => {
+          const done = s.autoChecked.includes(a.id);
+          return html`<li key=${a.id} class="grid gap-1 text-[15px]">
+            <p class="font-semibold">«${a.text}» <span class="font-code text-xs text-mute">${LANG[a.lang]}</span></p>
+            <p class="text-mute">${a.reply}</p>
+            <button type="button" disabled=${done} onClick=${() => onCheck(a.id)} class="chip justify-self-start mt-1">${done ? html`<${Check} size=${14} /> Проверено` : "Ответ верный"}</button>
+          </li>`;
+        })}
+      </ul>`}
+    </div>
+    <div>
+      <h2 class="font-display text-lg font-bold mb-2">Цели смены</h2>
+      ${goals.map((g) => html`<${Goal} key=${g.id} ...${g} />`)}
+    </div>
+  </aside>`;
+}
+
+function Translation({ text, stale }) {
+  return html`<div class="mt-4 pt-4 border-t border-[var(--line)] flex gap-3 text-[15px] text-mute">
+    <${Languages} size=${18} class="flex-none mt-[3px]" />
+    <p class="min-w-0">${stale ? html`<b class="text-warnt">Перевод не обновлён после правки. </b>` : null}${text}</p>
+  </div>`;
+}
+
+/* Что сделал ИИ: одна строка из наклеек, последняя называет, кто решает. */
+function Trace({ t }) {
+  const low = t.conf < LOW_CONF;
+  const conf = t.conf.toFixed(2).replace(".", ",");
+  return html`<div aria-label="Что сделал ИИ" class="flex flex-wrap gap-2">
+    <span class="pill">Язык ${LANG[t.lang]}</span>
+    <span class="pill font-code">${t.cat}</span>
+    <span class=${"pill" + (low ? " pill-low" : "")}>${low ? `Низкая уверенность ${conf}` : `Уверенность ${conf}`}</span>
+    ${t.facts.nick && html`<span class="pill">На ${t.facts.nick}</span>`}
+    <span class="pill">${t.facts.proof === "Нет" ? "Без доказательств" : t.facts.proof}</span>
+    <span class="pill pill-final">${t.human.length ? "Решает админ" : "Можно отправлять"}</span>
+  </div>`;
+}
+
+function Rule({ t, onChip, nudge, ruleOpen, onToggle }) {
+  const rule = t.ref && RULES[t.ref];
+  if (!rule) return null;
+  let n = 0;
+  return html`<section class="card">
+    <div class="flex flex-wrap items-center gap-3">
+      <h3 class="font-display text-[20px] font-bold">${t.ref}</h3>
+      <span class="pill" style=${{ color: "var(--ok)" }}><${ShieldCheck} size=${16} /> Проверен по базе</span>
+      <button type="button" class="chip ml-auto" onClick=${onToggle} aria-expanded=${ruleOpen}>${ruleOpen ? "Скрыть текст" : "Текст правила"} <span class="key">R</span></button>
+    </div>
+    ${ruleOpen && html`<div class="mt-3">
+      <p class="text-[17px]">${rule.text}</p>
+      ${rule.ladder.length > 0 && html`<ul class="mt-2 grid gap-1 text-[15px]">${rule.ladder.map((l, i) => html`<li key=${i}>${l}</li>`)}</ul>`}
+    </div>`}
+    ${t.chips && html`<div class=${"mt-5 grid gap-4" + (nudge ? " nudge" : "")} key=${nudge}>
+      ${t.chips.map((g) => html`<div key=${g.group}>
+        <p class="text-sm font-semibold mb-2">${g.group}</p>
+        <div class="flex flex-wrap gap-2">${g.items.map((c) => { n += 1; const k = n; return html`<button key=${c.label} type="button" class="chip" aria-pressed=${t.chip === c.label} onClick=${() => onChip(c)}><span class="key">${k}</span>${c.label}</button>`; })}</div>
+      </div>`)}
+    </div>`}
+  </section>`;
+}
+
+/* Админ выбирает исход, ИИ пишет черновик по тексту обращения; текст остаётся редактируемым. */
+function Generate({ t, generating, onGenerate }) {
+  return html`<section class="card" aria-label="Сгенерировать ответ">
+    <h3 class="label mb-3 flex items-center gap-2"><${Sparkles} size=${16} /> Сгенерировать ответ по обращению</h3>
+    <div class="flex flex-wrap gap-2">
+      ${VERDICTS.map((v) => html`<button key=${v.id} type="button" class="chip" aria-pressed=${t.verdict === v.id} disabled=${!!generating} onClick=${() => onGenerate(v.id)}>${generating === v.id ? "Пишу…" : v.label}</button>`)}
+    </div>
+    ${t.genNote && html`<p class="mt-3 text-sm text-mute">${t.genNote}</p>`}
+  </section>`;
+}
+
+function Ticket({ t, editing, generating, onGenerate, seriesCount, nudge, ruleOpen, onToggleRule, onDraft, onEdit, onStopEdit, onSend, onEsc, onChip, onMerge, areaRef }) {
+  const needsPunish = t.draft.includes(SLOT[t.lang]);
+  useLayoutEffect(() => {
+    const el = areaRef.current;
+    if (el) { el.style.height = "auto"; el.style.height = el.scrollHeight + "px"; }
+  }, [t.draft, t.id]);
+  return html`<div class="enter gutter ticket max-w-[880px] mx-auto py-8 grid gap-6 min-w-0" key=${t.id}>
+    <div class="grid gap-3">
+      <div class="flex flex-wrap items-center gap-3">
+        <${Badge} p=${t.p} />
+        <span class="text-sm text-mute"><span class="font-code">#${t.id}</span> · ${t.server}</span>
+      </div>
+      <h2 class="font-display text-[30px] font-bold leading-tight break-words">${t.from}</h2>
+    </div>
+    ${seriesCount > 0 && html`<div class="flex flex-wrap items-center gap-3 rounded-[2px] border border-[var(--line)] bg-[var(--paper)] px-5 py-3">
+      <${Combine} size=${20} class="flex-none" />
+      <p class="flex-1 min-w-[220px] font-semibold">На ${t.series} ещё ${seriesCount} ${seriesCount === 1 ? "жалоба" : "жалобы"} в очереди. Объединить?</p>
+      <button type="button" class="chip" onClick=${onMerge}><span class="key">M</span>Объединить</button>
+    </div>`}
+    ${t.merged && html`<p class="flex items-center gap-2 text-[15px]"><${Combine} size=${18} class="flex-none" /> Объединено жалоб: ${t.merged.length + 1}.</p>`}
+    <section class="card">
+      <h3 class="label mb-2">Игрок написал</h3>
+      <p class="text-[21px] leading-[1.5]">${t.text}</p>
+      ${t.textRu && html`<${Translation} text=${t.textRu} />`}
+      ${t.facts.proof !== "Нет" && html`<p class="mt-3 flex items-center gap-2 text-[15px] text-mute"><${Paperclip} size=${16} /> ${t.facts.proof}</p>`}
+    </section>
+    <${Trace} t=${t} />
+    <section class=${"card draft-card" + (editing ? " editing" : "")}>
+      <label for="draft" class="label block mb-2">Черновик ответа, ${LANG[t.lang]}${editing ? " · Ctrl+Enter отправить, Esc выйти" : ""}</label>
+      <textarea id="draft" ref=${areaRef} class="draft" rows="2" readOnly=${!editing} value=${t.draft} onChange=${(e) => onDraft(e.target.value)} onClick=${onEdit} onBlur=${onStopEdit}></textarea>
+      ${t.draftRu && html`<${Translation} text=${t.draftRu} stale=${t.edited} />`}
+      ${needsPunish && html`<p class="mt-3 inline-flex items-center gap-2 rounded-[2px] border border-[var(--line)] text-warnt px-4 py-2 text-[15px] font-semibold"><${TriangleAlert} size=${16} class="flex-none" /> Выберите наказание ниже или впишите своё</p>`}
+    </section>
+    <${Generate} t=${t} generating=${generating} onGenerate=${onGenerate} />
+    <${Rule} t=${t} onChip=${onChip} nudge=${nudge} ruleOpen=${ruleOpen} onToggle=${onToggleRule} />
+    ${t.human.length > 0 && html`<p class="flex gap-3 px-1">
+      <${UserRound} size=${20} class="flex-none mt-[3px]" />
+      <span class="min-w-0"><b>Нужен человек: </b><span class="text-mute">${t.human.join("; ")}.</span></span>
+    </p>`}
+    <div class="sticky bottom-0 py-3 flex flex-wrap gap-3 z-10 bg-sky">
+      <button type="button" class="btn btn-main flex-1 min-w-[200px]" onClick=${onSend}><${Send} size=${20} /> Отправить <span class="key">Enter</span></button>
+      <button type="button" class="btn" onClick=${onEdit}><${Pencil} size=${20} /> Править <span class="key">E</span></button>
+      <button type="button" class="btn btn-danger" onClick=${onEsc}><${ArrowUpRight} size=${20} /> Эскалировать <span class="key">X</span></button>
+    </div>
+    <${Numbers} />
+  </div>`;
+}
+
+function Numbers() {
+  const items = [["1,29 с", "p95 подготовки ответа", "var(--p3)"], ["$0,0004", "за обращение", "var(--ok)"], ["0", "выдуманных цитат", "var(--p1)"], ["RU KK UZ", "языки игроков", "var(--p2)"]];
+  return html`<dl class="grid grid-cols-2 lg:grid-cols-4 gap-3 pt-4">
+    ${items.map(([v, l]) => html`<div key=${l} class="rounded-[2px] border border-[var(--line)] p-4 bg-[var(--paper)]">
+      <dd class="font-display text-[20px] font-bold leading-tight num">${v}</dd><dt class="text-sm text-mute mt-1">${l}</dt>
+    </div>`)}
+  </dl>`;
+}
+
+function Cleared({ s, onUndo, canUndo }) {
+  return html`<div class="enter gutter max-w-[880px] mx-auto py-12 grid gap-6 text-center justify-items-center">
+    <h2 class="font-display text-4xl font-bold">Очередь закрыта</h2>
+    <p class="text-mute text-lg">Отправлено ${s.sent}, передано старшему ${s.escalated}, автоматически ${AUTO_TOTAL}. Решения по наказаниям принимал админ.</p>
+    ${canUndo && html`<button type="button" class="btn" onClick=${onUndo}><${Undo2} size=${20} /> Вернуть последний</button>`}
+    <div class="w-full text-left"><${Numbers} /></div>
+  </div>`;
+}
+
+function Toast({ toast, onUndo }) {
+  return html`<div role="status" aria-live="polite" class="enter fixed z-30 bottom-6 left-1/2 -translate-x-1/2 bg-[var(--raised)] border border-[var(--line)] rounded-full pl-6 pr-2 py-2 flex items-center gap-3 max-w-[calc(100%-32px)]">
+    <span class="font-semibold truncate">${toast.msg}</span>
+    <span class="num font-code text-xs text-mute flex-none">${toast.left} с</span>
+    <button type="button" class="chip flex-none" onClick=${onUndo}><${Undo2} size=${16} /> Отменить <span class="key">Z</span></button>
+  </div>`;
+}
+
+function setChip(t, chip) {
+  const slot = SLOT[t.lang], prev = t.chipData;
+  const next = prev && prev.label === chip.label ? null : chip;
+  const swap = (text, oldV, newV) => {
+    if (text.includes(oldV)) return text.replace(oldV, newV);
+    // Наказание ставим перед подписью, а не после неё.
+    const sign = text.search(/
++\s*(С уважением|Hurmat bilan|Құрметпен)/i);
+    return sign > 0 ? `${text.slice(0, sign)} ${newV}${text.slice(sign)}` : `${text} ${newV}`;
+  };
+  const draft = swap(t.draft, prev ? prev.ins : slot, next ? next.ins : slot);
+  const draftRu = t.draftRu ? swap(t.draftRu, prev ? prev.insRu : SLOT.ru, next ? next.insRu : SLOT.ru) : t.draftRu;
+  return { ...t, draft, draftRu, chip: next ? next.label : null, chipData: next };
+}
+
+function App() {
+  const [s, setS] = useState({ tickets: TICKETS, sent: 0, escalated: 0, clean: 0, autoChecked: [], rulesRead: false });
+  const [activeId, setActiveId] = useState(TICKETS[0] ? TICKETS[0].id : null);
+  const [generating, setGenerating] = useState(null);
+  const [drawer, setDrawer] = useState(false);
+  const [autoOpen, setAutoOpen] = useState(false);
+  const [ruleOpen, setRuleOpen] = useState(false);
+  const [editing, setEditing] = useState(false);
+  const [toast, setToast] = useState(null);
+  const [nudge, setNudge] = useState(0);
+  const areaRef = useRef(null);
+
+  const active = s.tickets.find((t) => t.id === activeId) || null;
+  const openP0 = s.tickets.filter((t) => t.p === 0).length;
+  const seriesCount = active && active.series ? s.tickets.filter((t) => t.series === active.series && t.id !== active.id).length : 0;
+
+  const goToP0 = () => { const b = s.tickets.find((t) => t.p === 0); if (b) { setActiveId(b.id); setDrawer(false); } };
+  const goals = useMemo(() => {
+    const closed = TOTAL_P0 - openP0;
+    return [
+      { id: "p0", title: "Закрыть все P0", value: closed, total: TOTAL_P0, done: openP0 === 0, hint: `${closed}/${TOTAL_P0}`, onClick: goToP0 },
+      { id: "clean", title: "5 ответов без правок", value: Math.min(s.clean, 5), total: 5, done: s.clean >= 5, hint: `${Math.min(s.clean, 5)}/5`, onClick: () => {} },
+      { id: "auto", title: "Проверить 3 автоответа", value: s.autoChecked.length, total: 3, done: s.autoChecked.length >= 3, hint: `${s.autoChecked.length}/3`, onClick: () => setAutoOpen(true) },
+    ];
+  }, [s, openP0]);
+
+  const act = (msg, change) => {
+    setToast({ msg, snap: { s, activeId }, left: 5, key: Date.now() });
+    setS(change);
+    setEditing(false);
+  };
+  const leave = (t, patch) => {
+    const i = s.tickets.findIndex((x) => x.id === t.id);
+    const rest = s.tickets.filter((x) => x.id !== t.id);
+    setActiveId(rest.length ? rest[Math.min(i, rest.length - 1)].id : null);
+    return { ...s, tickets: rest, ...patch };
+  };
+
+  const send = () => {
+    if (!active) return;
+    if (active.draft.includes(SLOT[active.lang])) { setNudge((n) => n + 1); return; }
+    log(active, "send");
+    const next = leave(active, { sent: s.sent + 1, clean: s.clean + (active.edited ? 0 : 1) });
+    act("Отправлено", () => next);
+  };
+  const escalate = () => {
+    if (!active) return;
+    log(active, "escalate");
+    const next = leave(active, { escalated: s.escalated + 1 });
+    act("Передано старшему", () => next);
+  };
+  const merge = () => {
+    if (!active || !active.series) return;
+    const others = s.tickets.filter((t) => t.series === active.series && t.id !== active.id);
+    if (!others.length) return;
+    others.forEach((o) => log(o, "merge"));
+    act(`Объединено жалоб: ${others.length + 1}`, (x) => ({
+      ...x,
+      tickets: x.tickets.filter((t) => !others.includes(t)).map((t) => (t.id === active.id ? { ...t, merged: others.map((o) => o.from), series: null } : t)),
+    }));
+  };
+  const undo = () => {
+    if (!toast) return;
+    const back = toast.snap.s.tickets.find((x) => x.id === toast.snap.activeId);
+    if (back) log(back, "undo");
+    setS(toast.snap.s); setActiveId(toast.snap.activeId); setToast(null); setEditing(false);
+  };
+  const patchActive = (fn) => setS((x) => ({ ...x, tickets: x.tickets.map((t) => (t.id === activeId ? fn(t) : t)) }));
+  const applyChip = (chip) => patchActive((t) => setChip(t, chip));
+  const edit = () => { setEditing(true); setTimeout(() => areaRef.current && areaRef.current.focus(), 0); };
+  const move = (delta) => {
+    const i = s.tickets.findIndex((t) => t.id === activeId);
+    const next = s.tickets[Math.max(0, Math.min(s.tickets.length - 1, i + delta))];
+    if (next) setActiveId(next.id);
+  };
+  const checkAuto = (id) => {
+    const a = AUTO.find((i) => i.id === id);
+    if (a) log(a.ticket, "auto_ok");
+    setS((x) => (x.autoChecked.includes(id) ? x : { ...x, autoChecked: [...x.autoChecked, id] }));
+  };
+
+  const patchTicket = (id, fn) => setS((x) => ({ ...x, tickets: x.tickets.map((t) => (t.id === id ? fn(t) : t)) }));
+
+  const translate = (text) => postJson("/api/translate", { text }).then((r) => r.json()).then((d) => d.text).catch(() => null);
+
+  const generate = async (verdict) => {
+    if (!active || generating) return;
+    const id = active.id, lang = active.lang;
+    setGenerating(verdict);
+    try {
+      const r = await postJson("/api/generate/" + encodeURIComponent(id), { verdict }).then((x) => x.json());
+      const offline = r.source !== "llm";
+      patchTicket(id, (t) => ({ ...t, draft: r.draft_reply.text, draftRu: null, edited: false, chip: null, chipData: null, verdict,
+        human: r.reasons, genNote: offline ? "ИИ недоступен: черновик собран из похожего случая." : "Черновик от ИИ, цитаты проверены. Можно править." }));
+      if (lang === "kk" || lang === "uz") {
+        const ru = await translate(r.draft_reply.text);
+        if (ru) patchTicket(id, (t) => ({ ...t, draftRu: ru }));
+      }
+    } catch (e) {
+      patchTicket(id, (t) => ({ ...t, genNote: "Не удалось сгенерировать, попробуйте ещё раз." }));
+    } finally {
+      setGenerating(null);
+    }
+  };
+
+  /* Перевод для русскоязычных админов подгружается при открытии казахского или узбекского тикета. */
+  useEffect(() => {
+    if (!active || (active.lang !== "kk" && active.lang !== "uz") || active.textRu) return;
+    const { id, text, draft } = active;
+    translate(text).then((ru) => { if (ru) patchTicket(id, (t) => ({ ...t, textRu: ru })); });
+    translate(draft).then((ru) => { if (ru) patchTicket(id, (t) => (t.draftRu ? t : { ...t, draftRu: ru })); });
+  }, [activeId]);
+  const pick = (id) => { setActiveId(id); setDrawer(false); };
+
+  useEffect(() => {
+    if (!toast) return;
+    if (toast.left <= 0) { setToast(null); return; }
+    const id = setTimeout(() => setToast((t) => (t && t.key === toast.key ? { ...t, left: t.left - 1 } : t)), 1000);
+    return () => clearTimeout(id);
+  }, [toast]);
+
+  useEffect(() => {
+    setEditing(false);
+    const main = document.querySelector(".main"); if (main) main.scrollTop = 0;
+    const el = document.querySelector(`[data-row="${activeId}"]`); if (el) el.scrollIntoView({ block: "nearest", inline: "nearest" });
+  }, [activeId]);
+
+  const keys = useRef({});
+  keys.current = { stopEdit: () => setEditing(false), send, escalate, merge, undo, edit, move, applyChip, active, setAutoOpen, setDrawer, setRuleOpen };
+  useEffect(() => {
+    const onKey = (e) => {
+      const k = keys.current;
+      const inField = e.target.tagName === "TEXTAREA" && !e.target.readOnly;
+      if (inField) {
+        if (e.code === "Escape") { e.preventDefault(); k.stopEdit(); e.target.blur(); }
+        if (e.code === "Enter" && (e.ctrlKey || e.metaKey) && !e.repeat) { e.preventDefault(); k.send(); }
+        return;
+      }
+      if (e.ctrlKey || e.metaKey || e.altKey) return;
+      // Привязка к физической клавише: хоткеи работают и на русской раскладке.
+      if (e.code === "Enter" || e.code === "NumpadEnter") {
+        if (e.target.tagName !== "BUTTON" && !e.repeat) { e.preventDefault(); k.send(); }
+      } else if (e.code === "ArrowDown") { e.preventDefault(); k.move(1); }
+      else if (e.code === "ArrowUp") { e.preventDefault(); k.move(-1); }
+      else if (e.code === "Escape") k.setDrawer(false);
+      else if (e.repeat) return;
+      else if (e.code === "KeyE") { e.preventDefault(); k.edit(); }
+      else if (e.code === "KeyX") k.escalate();
+      else if (e.code === "KeyZ") k.undo();
+      else if (e.code === "KeyM") k.merge();
+      else if (e.code === "KeyQ") k.setDrawer((o) => !o);
+      else if (e.code === "KeyR") k.setRuleOpen((o) => !o);
+      else if (e.code === "KeyA") { k.setDrawer(true); k.setAutoOpen((o) => !o); }
+      else if (/^Digit[1-9]$/.test(e.code) && k.active && k.active.chips) {
+        const chip = k.active.chips.flatMap((g) => g.items)[Number(e.code.slice(5)) - 1];
+        if (chip) k.applyChip(chip);
+      }
+    };
+    const onClick = (e) => { if (e.detail > 0 && document.activeElement && document.activeElement.tagName === "BUTTON") document.activeElement.blur(); };
+    document.addEventListener("keydown", onKey);
+    document.addEventListener("click", onClick);
+    return () => { document.removeEventListener("keydown", onKey); document.removeEventListener("click", onClick); };
+  }, []);
+
+  return html`<div class="app flex flex-col min-h-full">
+    <${Header} s=${s} />
+    <div class="layout">
+      <${Rail} s=${s} activeId=${activeId} onPick=${pick} onMenu=${() => setDrawer(!drawer)} />
+      <main class="main min-w-0">
+        ${active
+          ? html`<${Ticket} t=${active} editing=${editing} generating=${generating} onGenerate=${generate} seriesCount=${seriesCount} nudge=${nudge} areaRef=${areaRef} ruleOpen=${ruleOpen} onToggleRule=${() => setRuleOpen(!ruleOpen)}
+              onDraft=${(v) => patchActive((t) => ({ ...t, draft: v, edited: true }))} onEdit=${edit} onStopEdit=${() => setEditing(false)}
+              onSend=${send} onEsc=${escalate} onChip=${applyChip} onMerge=${merge} />`
+          : html`<${Cleared} s=${s} onUndo=${undo} canUndo=${!!toast} />`}
+      </main>
+    </div>
+    ${drawer && html`<${Drawer} s=${s} activeId=${activeId} goals=${goals} autoOpen=${autoOpen} onAuto=${() => setAutoOpen(!autoOpen)} onCheck=${checkAuto} onPick=${pick} onClose=${() => setDrawer(false)} />`}
+    ${toast && html`<${Toast} key=${toast.key} toast=${toast} onUndo=${undo} />`}
+  </div>`;
+}
+
+loadQueue().then(() => ReactDOM.createRoot(document.getElementById("root")).render(html`<${App} />`));
+</script>
+
 </body>
 </html>
