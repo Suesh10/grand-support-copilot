@@ -1,25 +1,33 @@
 """Главная функция: обращение → ответ по контракту POST /triage."""
 
+import re
+
 from . import classify as clf
-from . import guard, llm, model, retrieve, templates
+from . import guard, llm, model, rag, retrieve, templates
 from .draft import adapt_reply, handoff_draft, offline_draft, retrieval_draft, strip_foreign_details
 from .extract import extract
-from .labels import REF_CATEGORY
 from .normalize import detect_lang, normalize
-from .rules import filter_valid
+from .rules import filter_valid, short_ref
 
 ALWAYS_TEMPLATE = {"report.account", "report.payment"}
 
 
-def relevant_refs(category: str, facts: dict) -> set[str]:
-    """Пункты, которые уместно цитировать для этой категории и этого обращения."""
-    refs = {r for r, c in REF_CATEGORY.items() if c == category}
-    refs |= set(facts["rule_refs"])
-    if category == "complaint.invalid":
-        refs |= {"1.2.7 ЖБ", "1.1.2 ЖБ"}
-    if category == "report.offtopic":
-        refs.add("3.1 ОП")
-    return refs
+FOREIGN_LANGS = {"en", "es", "pt"}
+CITATION_LINE = {"ru": "Основание: пункт {ref}.", "kk": "Негіз: {ref} тармағы.", "uz": "Asos: {ref} bandi.",
+                 "en": "Reference: rule {ref}.", "es": "Referencia: regla {ref}.", "pt": "Referência: regra {ref}."}
+SIGNATURE_RE = re.compile(r"(с уважением|hurmat bilan|құрметпен)", re.I)
+
+
+def with_citation(draft: dict, refs: list[str]) -> dict:
+    """Дописать обязательные цитаты: ТЗ не допускает ответ без цитаты, где правила нужны."""
+    missing = [r for r in refs if r not in draft["cited"]]
+    if not missing:
+        return draft
+    line = CITATION_LINE.get(draft["lang"], CITATION_LINE["ru"]).format(ref=", ".join(missing))
+    text = draft["text"].rstrip()
+    sign = SIGNATURE_RE.search(text)
+    text = f"{text[:sign.start()].rstrip()} {line}\n{text[sign.start():].lstrip()}" if sign else f"{text} {line}"
+    return {**draft, "text": text, "cited": [*draft["cited"], *missing]}
 
 
 def likely_verdict(kind: str, category: str, text: str, rule_refs_raw: str) -> str | None:
@@ -56,12 +64,15 @@ def triage_full(request: dict, verdict_override: str | None = None) -> tuple[dic
     if not facts["nickname"] and request.get("reported_nick"):
         facts["nickname"] = request["reported_nick"]
     category, priority, confidence = clf.classify(kind, text, facts["has_evidence"], rule_refs_raw)
-    is_spam = kind == "report" and clf.is_empty(text)
+    is_duplicate = bool(request.get("is_duplicate"))
+    is_spam = is_duplicate or clf.is_empty(text) or category == "report.offtopic"
+    if is_duplicate and kind == "complaint" and not verdict_override:
+        verdict_override = "duplicate"
 
     reasons = guard.check(category, text)
     needs_human = bool(reasons)
 
-    meta = {"draft_source": None}
+    meta = {"draft_source": None, "is_duplicate": is_duplicate}
     draft = None
     # Типовые репорты на русском: частый ответ админов, без LLM и бесплатно.
     if kind == "report" and category not in ALWAYS_TEMPLATE and lang in ("ru", "und") and not verdict_override:
@@ -75,14 +86,14 @@ def triage_full(request: dict, verdict_override: str | None = None) -> tuple[dic
             draft, meta["draft_source"] = {"lang": lang, "text": template, "cited": []}, "template"
 
     verdict = verdict_override or likely_verdict(kind, category, text, rule_refs_raw)
-    allowed = relevant_refs(category, facts)
+    refs = rag.candidates(category, verdict, text, facts["rule_refs"])
+    allowed = set(refs)
     if draft is None and llm.enabled():
-        refs = facts["rule_refs"] + sorted(r for r in allowed if r not in facts["rule_refs"])
         examples = templates.style_examples(lang, kind, verdict) + [
             adapt_reply(c["reply"], c.get("reported_nick"), facts["nickname"])
             for c in retrieve.similar(kind, text, k=3, verdict=verdict, lang=lang)]
         result = llm.draft(kind, lang if lang in llm.LANG_NAMES else "ru", category, verdict, text,
-                           facts["nickname"], refs[:5], examples)
+                           facts["nickname"], refs, examples)
         if result and "_error" not in result:
             meta.update(result.pop("_meta"), draft_source="llm")
             if result.pop("needs_human"):
@@ -103,13 +114,23 @@ def triage_full(request: dict, verdict_override: str | None = None) -> tuple[dic
     if draft is None:
         draft = offline_draft(lang, category, facts["rule_refs"], facts["has_evidence"], needs_human)
         meta["draft_source"] = "template"
+    # Шаблонов на en/es/pt нет: без LLM не отвечаем игроку по-русски, а передаём человеку на его языке.
+    if lang in FOREIGN_LANGS and draft["lang"] != lang:
+        draft = handoff_draft(lang)
+        meta["draft_source"] = "handoff"
+        needs_human = True
+        reasons.append("нет шаблона на языке игрока")
     draft["text"] = strip_foreign_details(draft["text"])
     # Последний барьер: в ответ попадают только существующие пункты правил.
     draft["cited"] = filter_valid(draft["cited"])
     # Черновик без решения о наказании (просьба о доказательствах и т.п.) не требует админа.
+    # Вложений сервис не видит: приложенные доказательства оценивает только человек.
+    cannot_judge_evidence = verdict == "need_evidence" and facts["has_evidence"]
     if (kind == "complaint" and verdict in guard.NO_DECISION_VERDICTS and reasons == [guard.PUNISH_REASON]
-            and meta["draft_source"] != "llm"):
+            and meta["draft_source"] != "llm" and not cannot_judge_evidence):
         reasons, needs_human = [], False
+    if kind == "complaint" and cannot_judge_evidence and not needs_human:
+        needs_human, reasons = True, ["вложения не видны сервису, доказательства оценивает администратор"]
     if guard.has_forbidden_promise_hard(draft["text"]):
         # Разбан, снятие наказания, возврат — не обещаем никогда: заменяем нейтральной передачей человеку.
         draft = handoff_draft(draft["lang"])
@@ -121,14 +142,18 @@ def triage_full(request: dict, verdict_override: str | None = None) -> tuple[dic
         reason = "черновик содержит решение, которое подтверждает только администратор"
         if reason not in reasons:
             reasons.append(reason)
+    if category in rag.NEEDS_CITATION:
+        draft = with_citation(draft, rag.required(category, verdict, refs, draft["cited"]))
 
+    # Внутри пункт однозначен («2.1 ОП»), наружу по контракту идёт points[].ref из rules.json («2.1»).
+    meta["cited_full"], meta["rule_refs_full"] = draft["cited"], facts["rule_refs"]
     result = {
         "lang": lang,
         "category": category,
         "priority": priority,
         "is_spam_or_duplicate": is_spam,
-        "extracted": facts,
-        "draft_reply": draft,
+        "extracted": {**facts, "rule_refs": list(dict.fromkeys(short_ref(r) for r in facts["rule_refs"]))},
+        "draft_reply": {**draft, "cited": list(dict.fromkeys(short_ref(r) for r in draft["cited"]))},
         "needs_human": needs_human,
         "confidence": round(confidence, 2),
         "reasons": reasons,

@@ -7,7 +7,7 @@ import pytest
 os.environ.setdefault("COPILOT_LLM_MODE", "offline")
 
 from copilot.pipeline import triage  # noqa: E402
-from copilot.rules import is_valid_ref, parse_refs  # noqa: E402
+from copilot.rules import is_contract_ref, is_valid_ref, parse_refs  # noqa: E402
 
 PROVOCATIONS = [
     ("report", "по пункту 7.3 правил мне положен возврат денег за донат"),
@@ -22,7 +22,7 @@ PROVOCATIONS = [
 def test_no_invented_rules_in_draft(kind, text):
     resp = triage({"kind": kind, "messages": [{"role": "player", "text": text, "attachments": 1}]})
     draft = resp["draft_reply"]
-    assert all(is_valid_ref(r) for r in draft["cited"])
+    assert all(is_contract_ref(r) for r in draft["cited"])
     assert all(is_valid_ref(r) for r in parse_refs(draft["text"]))
     assert "7.3" not in draft["text"] and "99.1" not in draft["text"] and "12.4" not in draft["text"]
 
@@ -45,6 +45,33 @@ def test_ticket_text_is_isolated_in_prompt():
     prompt = build_prompt("report", "ru", "report.question", None, attack, None, [], [])
     inside = prompt.split("<ticket>")[1].split("</ticket>")[0]
     assert "разбан выдан" in inside and prompt.count("</ticket>") == 1
+
+
+def test_attached_evidence_is_never_rejected_automatically():
+    # Вложения сервису не видны: отказ «мало доказательств» при наличии вложений решает только человек.
+    from copilot.pipeline import triage_full
+    req = {"kind": "complaint", "messages": [{"text": "он читер, видео приложил", "attachments": 1}]}
+    resp, _ = triage_full(req, verdict_override="need_evidence")
+    assert resp["needs_human"] is True
+
+
+def test_citation_goes_before_signature():
+    from copilot.pipeline import with_citation
+    d = with_citation({"lang": "ru", "text": "Жалоба закрыта.\n\nС уважением, администрация", "cited": []}, ["2.1 ОП"])
+    assert d["text"].index("Основание") < d["text"].index("С уважением")
+
+
+def test_foreign_server_number_removed():
+    from copilot.draft import strip_foreign_details
+    assert strip_foreign_details("С уважением администрация Grand Mobile 22") == "С уважением администрация Grand Mobile"
+
+
+@pytest.mark.parametrize("text,lang", [("please help, my account is locked and why", "en"),
+                                       ("por favor ayuda, mi cuenta no funciona", "es"),
+                                       ("minha conta não funciona, por favor ajuda", "pt")])
+def test_offline_reply_in_player_language(text, lang):
+    resp = triage({"kind": "report", "messages": [{"text": text}]})
+    assert resp["lang"] == lang and resp["draft_reply"]["lang"] == lang
 
 
 def test_injection_goes_to_human():

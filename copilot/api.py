@@ -9,8 +9,11 @@ from pydantic import BaseModel, Field
 
 from . import __version__, llm, model, retrieve
 from .admin import router as admin_router
+from .dedupe import Deduper
 from .pipeline import triage
 from .rules import load_points
+
+_dedupe = Deduper()
 
 
 @asynccontextmanager
@@ -37,6 +40,10 @@ class TriageRequest(BaseModel):
     messages: list[Message]
     rule_refs_raw: str | None = None
     reported_nick: str | None = None
+    # Необязательные поля для отсева дублей: без них дубль не определяется.
+    reporter_hash: str | None = None
+    reported_hash: str | None = None
+    created_at: str | None = None
 
 
 @app.get("/health")
@@ -48,4 +55,6 @@ def health() -> dict:
 
 @app.post("/triage")
 def triage_endpoint(req: TriageRequest) -> dict:
-    return triage(req.model_dump())
+    request = req.model_dump()
+    request["is_duplicate"] = _dedupe.is_duplicate(request)
+    return triage(request)

@@ -16,11 +16,12 @@ GREETING_NAME_RE = re.compile(r"(уважаем(?:ый|ая)|hurmatli|құрме
 
 
 SERVER_RE = re.compile(r"(администрация)\s+\d+\s+сервера", re.I)
+BRAND_SERVER_RE = re.compile(r"(grand\s?mobile)\s+\d{1,3}\b", re.I)
 
 
 def strip_foreign_details(text: str) -> str:
     """Подпись конкретного сервера из чужого ответа: номера сервера нашего обращения мы не знаем."""
-    return SERVER_RE.sub(r"\1", text)
+    return BRAND_SERVER_RE.sub(r"\1", SERVER_RE.sub(r"\1", text))
 
 
 def adapt_reply(reply: str, source_reported: str | None, target_reported: str | None) -> str:
@@ -74,6 +75,8 @@ HANDOFF = {
     "kk": templates.KK["senior"],
     "uz": templates.UZ["senior"],
     "en": "Hello! Your request has been forwarded to a senior administrator. Please wait for a reply.",
+    "es": "¡Hola! Su solicitud ha sido enviada a un administrador superior. Por favor, espere la respuesta.",
+    "pt": "Olá! Sua solicitação foi encaminhada a um administrador sênior. Por favor, aguarde a resposta.",
 }
 
 

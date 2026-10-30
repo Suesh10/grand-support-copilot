@@ -17,7 +17,7 @@ from pydantic import BaseModel
 
 from . import config, llm
 from .normalize import normalize
-from .pipeline import relevant_refs, triage, triage_full
+from .pipeline import triage_full
 from .predict import open_any, ticket_to_request
 from .rules import load_points
 
@@ -59,9 +59,8 @@ def load_queue() -> tuple:
     items = []
     for t in tickets:
         request = ticket_to_request(t)
-        pred = triage(request)
-        refs = (pred["draft_reply"]["cited"] or pred["extracted"]["rule_refs"]
-                or sorted(relevant_refs(pred["category"], pred["extracted"]))[:2])
+        pred, meta = triage_full(request)
+        refs = meta["cited_full"] or meta["rule_refs_full"]
         items.append({
             "id": t.get("ticket_id"),
             "kind": t.get("kind"),

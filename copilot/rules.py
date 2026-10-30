@@ -90,6 +90,16 @@ def is_valid_ref(ref: str) -> bool:
     return ref in load_points()
 
 
+def short_ref(ref: str) -> str:
+    """Внутренний id «2.1 ОП» → идентификатор points[].ref из rules.json: так цитаты отдаёт контракт."""
+    return ref.rsplit(" ", 1)[0]
+
+
+def is_contract_ref(ref: str) -> bool:
+    """Существует ли такой points[].ref в rules.json."""
+    return any(p.number == ref for p in load_points().values())
+
+
 def filter_valid(refs: list[str]) -> list[str]:
     """Оставить только существующие пункты, без повторов."""
     seen: list[str] = []

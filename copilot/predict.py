@@ -10,6 +10,7 @@ import json
 import sys
 import time
 
+from .dedupe import Deduper
 from .pipeline import triage
 
 
@@ -38,12 +39,15 @@ def main() -> None:
     sys.stderr.reconfigure(encoding="utf-8")
 
     n, started = 0, time.perf_counter()
+    dedupe = Deduper()
     with open_any(args.inp) as fin, open(args.out, "w", encoding="utf-8") as fout:
         for line in fin:
             if not line.strip():
                 continue
             ticket = json.loads(line)
-            pred = triage(ticket_to_request(ticket))
+            request = ticket_to_request(ticket)
+            request["is_duplicate"] = dedupe.is_duplicate(ticket)
+            pred = triage(request)
             fout.write(json.dumps({"ticket_id": ticket.get("ticket_id"), **pred}, ensure_ascii=False) + "\n")
             n += 1
     print(f"Готово: {n} обращений за {time.perf_counter() - started:.1f} с → {args.out}", file=sys.stderr)

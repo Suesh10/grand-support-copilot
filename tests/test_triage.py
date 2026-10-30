@@ -20,7 +20,8 @@ def test_contract_example_from_tz():
     assert body["lang"] == "ru"
     assert body["category"] == "complaint.insult"
     assert body["extracted"]["nickname"] == "Arman_Petrov"
-    assert body["extracted"]["rule_refs"] == ["2.1 ОП"]
+    assert body["extracted"]["rule_refs"] == ["2.1"]
+    assert body["draft_reply"]["cited"] == ["2.1"]
     assert body["extracted"]["has_evidence"] is True
     assert body["needs_human"] is True
 
@@ -49,3 +50,35 @@ def test_empty_report_is_spam():
     body = client.post("/triage", json={"kind": "report", "messages": [{"text": "+"}]}).json()
     assert body["is_spam_or_duplicate"] is True
     assert body["category"] == "report.offtopic"
+
+
+def test_complaints_always_cite_a_rule():
+    for text, ref in [("он читер, летает", "5.2"), ("обманул на машину, не отдал деньги", "4.1")]:
+        body = client.post("/triage", json={"kind": "complaint", "messages": [{"text": text, "attachments": 1}]}).json()
+        assert body["draft_reply"]["cited"], text
+        assert body["category"] in ("complaint.cheat", "complaint.scam")
+
+
+def test_rag_finds_rule_by_meaning():
+    from copilot.rag import search
+    refs = [r for r, _ in search("продаёт игровую валюту за реальные деньги", k=5)]
+    assert "4.4 ОП" in refs
+
+
+def test_duplicate_complaint_same_pair_within_an_hour():
+    from copilot.dedupe import Deduper
+    d = Deduper()
+    t = {"reporter_hash": "a", "reported_hash": "b", "created_at": "2026-10-01T10:00:00", "messages": []}
+    assert d.is_duplicate(t) is False
+    assert d.is_duplicate({**t, "created_at": "2026-10-01T10:40:00"}) is True
+    assert d.is_duplicate({**t, "created_at": "2026-10-01T15:00:00"}) is False
+    assert d.is_duplicate({**t, "reporter_hash": "c"}) is False
+
+
+def test_duplicate_flag_reaches_contract():
+    body = client.post("/triage", json={"kind": "complaint", "reporter_hash": "x", "reported_hash": "y",
+                                        "messages": [{"text": "оскорбил меня, скрин", "attachments": 1}]}).json()
+    assert body["is_spam_or_duplicate"] is False
+    body = client.post("/triage", json={"kind": "complaint", "reporter_hash": "x", "reported_hash": "y",
+                                        "messages": [{"text": "оскорбил меня, скрин", "attachments": 1}]}).json()
+    assert body["is_spam_or_duplicate"] is True

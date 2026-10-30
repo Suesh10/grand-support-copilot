@@ -18,7 +18,7 @@
 }
 ```
 
-**Ответ** (источник черновика: `llm`, 2.58 с, $0.00060)
+**Ответ** (источник черновика: `llm`, 2.82 с, $0.00068)
 ```json
 {
   "lang": "ru",
@@ -28,23 +28,23 @@
   "extracted": {
     "nickname": "Arman_Petrov",
     "rule_refs": [
-      "2.1 ОП"
+      "2.1"
     ],
     "has_evidence": true,
     "server": null
   },
   "draft_reply": {
     "lang": "ru",
-    "text": "Приветствую, уважаемый игрок. Ваша жалоба была рассмотрена и одобрена. Игрок Arman_Petrov будет наказан за 2.1 ОП.\n\nЖалоба закрыта.\n\nС уважением, Администрация GrandMobile",
+    "text": "Приветствую, уважаемый игрок. Ваша жалоба была рассмотрена и одобрена. Игрок Arman_Petrov будет наказан за нарушение пункта 2.1 ОП.\n\nЖалоба закрыта. \n\nС уважением, Администрация \nGrandMobile",
     "cited": [
-      "2.1 ОП"
+      "2.1"
     ]
   },
   "needs_human": true,
   "confidence": 0.95,
   "reasons": [
     "решение о наказании подтверждает администратор",
-    "требуется решение администратора о выдаче конкретного наказания",
+    "Требуется решение администратора о выдаче наказания по жалобе",
     "черновик содержит решение, которое подтверждает только администратор"
   ]
 }
@@ -66,7 +66,7 @@
 }
 ```
 
-**Ответ** (источник черновика: `llm`, 0.90 с, $0.00035)
+**Ответ** (источник черновика: `llm`, 0.96 с, $0.00049)
 ```json
 {
   "lang": "ru",
@@ -81,17 +81,17 @@
   },
   "draft_reply": {
     "lang": "ru",
-    "text": "Приветствую.\nВаше обращение рассмотрит старшая администрация.\nС уважением, Администрация GrandMobile!",
+    "text": "Здравствуйте. Ваше обращение будет передано старшей администрации. Ожидайте ответа.",
     "cited": [
-      "3.4 ОП"
+      "3.4"
     ]
   },
   "needs_human": true,
-  "confidence": 0.98,
+  "confidence": 0.87,
   "reasons": [
     "категория complaint.admin всегда идёт человеку",
     "решение о наказании подтверждает администратор",
-    "апелляция на наказание администратора"
+    "апелляция на наказание администратора требует решения старшей администрации"
   ]
 }
 ```
@@ -112,7 +112,7 @@
 }
 ```
 
-**Ответ** (источник черновика: `llm`, 0.94 с, $0.00078)
+**Ответ** (источник черновика: `llm`, 0.89 с, $0.00071)
 ```json
 {
   "lang": "uz",
@@ -122,23 +122,24 @@
   "extracted": {
     "nickname": "Bobur_Karimov",
     "rule_refs": [
-      "5.2 ОП"
+      "5.2"
     ],
     "has_evidence": true,
     "server": null
   },
   "draft_reply": {
     "lang": "uz",
-    "text": "Hurmatli o‘yinchi,\nSizning shikoyatingiz uchun rahmat. Qoidabuzarliklar yoqimsiz holat bo‘lishi mumkinligini tushunamiz. Biroq, tekshiruv o‘tkazish va tegishli choralar ko‘rish uchun video dalil (videofiksatsiya) zarur. Iltimos, nisbatan zarur choralar ko‘rishimiz uchun ko‘proq ma’lumot va dalillar taqdim eting. Sizning hamkorligingiz va tushunishingiz biz uchun muhim. Ishtirokingiz uchun rahmat!",
+    "text": "Hurmatli o'yinchi, shikoyatingiz uchun tashakkur bildiramiz. Afsuski, taqdim etilgan dalillar yetarli emas. Iltimos, qo'shimcha dalil (video yozuv, skrinshot) taqdim eting — shunda shikoyatni qayta ko'rib chiqamiz. Yopildi. Asos: 5.2 ОП bandi.",
     "cited": [
-      "5.2 ОП"
+      "1.2.2",
+      "5.2"
     ]
   },
   "needs_human": true,
-  "confidence": 0.53,
+  "confidence": 0.66,
   "reasons": [
     "решение о наказании подтверждает администратор",
-    "trebuetsya proverka dokazatelstv"
+    "Требуется проверка доказательств на читы"
   ]
 }
 ```
@@ -163,7 +164,7 @@
 {
   "lang": "ru",
   "category": "report.help",
-  "priority": "p2",
+  "priority": "p3",
   "is_spam_or_duplicate": false,
   "extracted": {
     "nickname": null,
@@ -197,7 +198,7 @@
 }
 ```
 
-**Ответ** (источник черновика: `llm`, 0.80 с, $0.00032)
+**Ответ** (источник черновика: `template`)
 ```json
 {
   "lang": "kk",
@@ -212,15 +213,14 @@
   },
   "draft_reply": {
     "lang": "kk",
-    "text": "Сәлеметсіз бе! Бұл мәселе бойынша өтініш үлкен әкімшіге берілді.",
+    "text": "Сәлеметсіз бе! Сұрағыңыз аға администраторға жіберілді. Жауапты жақын арада аласыз.",
     "cited": []
   },
   "needs_human": true,
   "confidence": 1.0,
   "reasons": [
     "категория report.payment всегда идёт человеку",
-    "вопрос о платеже или возврате",
-    "платеж"
+    "вопрос о платеже или возврате"
   ]
 }
 ```
@@ -240,7 +240,7 @@
 }
 ```
 
-**Ответ** (источник черновика: `llm`, 0.91 с, $0.00030)
+**Ответ** (источник черновика: `llm`, 0.83 с, $0.00039)
 ```json
 {
   "lang": "ru",
@@ -255,7 +255,7 @@
   },
   "draft_reply": {
     "lang": "ru",
-    "text": "Приветствую. Обращение передано старшему администратору.",
+    "text": "Приветствую, обращение передано старшему администратору.",
     "cited": []
   },
   "needs_human": true,
@@ -263,7 +263,7 @@
   "reasons": [
     "категория report.account всегда идёт человеку",
     "подозрение на взлом аккаунта",
-    "вопрос взлома аккаунта требует вмешательства старшей администрации"
+    "взлом аккаунта"
   ]
 }
 ```
@@ -298,7 +298,7 @@
   },
   "draft_reply": {
     "lang": "ru",
-    "text": "Приветствую, слежу за вами.",
+    "text": "Приветствую, ожидайте.",
     "cited": []
   },
   "needs_human": false,

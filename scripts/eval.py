@@ -30,10 +30,12 @@ from sklearn.feature_extraction.text import TfidfVectorizer  # noqa: E402
 from sklearn.metrics import accuracy_score, f1_score  # noqa: E402
 
 from copilot import config, llm  # noqa: E402
+from copilot.dedupe import Deduper  # noqa: E402
 from copilot.labels import weak_label  # noqa: E402
 from copilot.pipeline import triage_full  # noqa: E402
 from copilot.predict import ticket_to_request  # noqa: E402
-from copilot.rules import is_valid_ref, parse_refs  # noqa: E402
+from copilot.rag import NEEDS_CITATION  # noqa: E402
+from copilot.rules import is_contract_ref, is_valid_ref, parse_refs  # noqa: E402
 
 GOLD_PATH = ROOT / "data" / "gold" / "label_me.xlsx"
 
@@ -92,6 +94,7 @@ def main() -> None:
     mode = config.LLM_MODE
 
     rows = []
+    dedupe = Deduper()
     last_llm = 0.0
     for t in tickets:
         config.LLM_MODE = mode if t["ticket_id"] in llm_ids else "offline"
@@ -100,7 +103,9 @@ def main() -> None:
             time.sleep(max(0.0, last_llm + 60 / args.llm_rpm - time.perf_counter()))
             last_llm = time.perf_counter()
         started = time.perf_counter()
-        pred, meta = triage_full(ticket_to_request(t))
+        request = ticket_to_request(t)
+        request["is_duplicate"] = dedupe.is_duplicate(t)
+        pred, meta = triage_full(request)
         rows.append({"t": t, "pred": pred, "meta": meta, "latency": time.perf_counter() - started,
                      "llm_sampled": t["ticket_id"] in llm_ids})
     config.LLM_MODE = mode
@@ -137,9 +142,34 @@ def main() -> None:
     mentioned = [m for r in rows for m in parse_refs(r["pred"]["draft_reply"]["text"])]
     report["hallucinations"] = {
         "citations_total": len(cited),
-        "citations_invalid": sum(not is_valid_ref(c) for c in cited),
+        "citations_not_in_rules_json": sum(not is_contract_ref(c) for c in cited),
         "mentioned_refs_invalid": sum(not is_valid_ref(m) for m in mentioned),
         "drafts_with_citation": pct(sum(bool(r["pred"]["draft_reply"]["cited"]) for r in rows) / len(rows)),
+    }
+
+    # --- Покрытие: ТЗ не допускает ответ без цитаты там, где правила нужны ---
+    must = [r for r in rows if r["pred"]["category"] in NEEDS_CITATION]
+    report["citation_coverage"] = {
+        "tickets_need_citation": len(must),
+        "with_citation": pct(sum(bool(r["pred"]["draft_reply"]["cited"]) for r in must) / len(must)) if must else None,
+        "by_category": {c: f"{sum(bool(r['pred']['draft_reply']['cited']) for r in must if r['pred']['category'] == c)}"
+                           f"/{sum(r['pred']['category'] == c for r in must)}" for c in sorted(NEEDS_CITATION)},
+    }
+
+    # --- Релевантность: совпал ли наш пункт с тем, что поставил админ в одобренных жалобах ---
+    judged = [(parse_refs(r["t"].get("violation") or ""), r["meta"].get("cited_full") or []) for r in rows
+              if r["t"].get("verdict") == "approved" and parse_refs(r["t"].get("violation") or "")]
+    if judged:
+        report["citation_relevance_vs_admin"] = {
+            "n": len(judged), "same_ref": pct(sum(bool(set(a) & set(c)) for a, c in judged) / len(judged))}
+
+    # --- Дубли и спам ---
+    flagged = [r for r in rows if r["pred"]["is_spam_or_duplicate"]]
+    real_dups = [r for r in rows if r["t"].get("verdict") == "duplicate"]
+    report["spam_duplicates"] = {
+        "flagged": len(flagged), "flagged_duplicates_by_pair": sum(bool(r["meta"].get("is_duplicate")) for r in rows),
+        "admin_marked_duplicate": len(real_dups),
+        "of_them_flagged": sum(r["pred"]["is_spam_or_duplicate"] for r in real_dups),
     }
 
     # --- Близость черновика к реальному ответу админа (прокси для слепой оценки) ---
