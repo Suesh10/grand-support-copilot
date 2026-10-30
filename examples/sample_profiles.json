@@ -1,6 +1,7 @@
 {
   "demo-reporter-1": {
     "filed": 24,
+    "filed_confirmed": 17,
     "reports": 6,
     "criteria": [
       {
@@ -21,6 +22,7 @@
   },
   "demo-reporter-2": {
     "filed": 31,
+    "filed_confirmed": 3,
     "reports": 12,
     "criteria": [
       {
@@ -45,6 +47,7 @@
   },
   "demo-accused-1": {
     "filed": 2,
+    "filed_confirmed": 1,
     "reports": 1,
     "criteria": [
       {

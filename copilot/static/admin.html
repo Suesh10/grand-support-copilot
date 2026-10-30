@@ -66,11 +66,12 @@
   .flow-n { width: 22px; height: 22px; display: grid; place-items: center; border-radius: 999px; background: var(--accent); color: var(--on-accent); font-size: 13px; font-weight: 700; }
   .try-row { display: grid; grid-template-columns: 170px minmax(0, 1fr); gap: 12px; }
   .has-tip { position: relative; cursor: help; border-bottom: 1px dotted var(--muted); }
-  .tip { display: none; position: absolute; left: 0; top: 100%; z-index: 30; width: 300px; margin-top: 6px; padding: 12px 14px; background: var(--raised); border: 1px solid var(--line); border-radius: 2px; font-family: "Onest", system-ui, sans-serif; font-size: 14px; font-weight: 400; line-height: 1.4; }
+  .tip { display: none; position: absolute; left: 0; top: 100%; z-index: 30; width: 320px; margin-top: 6px; padding: 12px 14px; background: var(--raised); border: 1px solid var(--line); border-radius: 2px; font-family: "Onest", system-ui, sans-serif; font-size: 14px; font-weight: 400; line-height: 1.4; }
   .has-tip:hover .tip, .has-tip:focus .tip { display: block; }
-  .tip-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
-  .tip-grid span { display: grid; color: var(--muted); font-size: 13px; }
-  .tip-grid b { color: var(--text); font-size: 20px; }
+  .facts { display: grid; gap: 8px; font-size: 14px; }
+  .fact-row { display: grid; gap: 1px; color: var(--muted); }
+  .fact-row b { color: var(--text); font-weight: 700; }
+  .fact-note { padding-top: 8px; border-top: 1px solid var(--line); color: var(--text); }
   .tab { width: 100%; min-height: 56px; display: flex; align-items: center; gap: 10px; padding: 8px 10px; border-radius: 2px; border: 1px solid transparent; text-align: left; font-size: 14px; font-weight: 600; line-height: 1.25; }
   .tab:hover { background: var(--raised); }
   .tab[aria-current="true"] { border-color: var(--accent); }
@@ -418,30 +419,24 @@ function Rule({ t, onChip, nudge, ruleOpen, onToggle }) {
 
 /* Админ выбирает исход, ИИ пишет черновик по тексту обращения; текст остаётся редактируемым. */
 /* История игрока — подсказка: только факты, решение и выводы за администратором. */
-const topicNames = (p) => p.topics.map((x) => (TYPE_NAMES[x.code] || x.code) + " " + x.count).join(", ");
-const readable = (p) => p.comment.replace(/Чаще всего жалуются на: [\w.]+\./, p.topics.length ? "Чаще всего жалуются на: " + (TYPE_NAMES[p.topics[0].code] || p.topics[0].code).toLowerCase() + "." : "");
-
-/* Карточка при наведении: сколько всего обращений и что о нём уже известно. */
-function PlayerTip({ p, label }) {
-  return html`<span class="has-tip" tabindex="0">${label}
-    <span class="tip" role="tooltip">
-      <span class="tip-grid">
-        <span><b class="num">${p.filed}</b>жалоб</span><span><b class="num">${p.reports}</b>репортов</span><span><b class="num">${p.total}</b>всего</span>
-      </span>
-      <span class="block mt-2">На него: жалоб ${p.against}, репортов ${p.reports_against}${p.new ? ", новых " + p.new : ""}</span>
-      ${p.tags.length > 0 && html`<span class="block mt-2 font-semibold">${p.tags.join(" · ")}</span>`}
-      <span class="block mt-2 text-mute">${readable(p)}</span>
-    </span>
+/* Два разных счёта: что подал сам игрок и что подали на него. Комментарий не повторяет числа. */
+function PlayerFacts({ p }) {
+  return html`<span class="facts">
+    <span class="fact-row"><b>Сам подал</b><span>жалоб ${p.filed}, подтверждено ${p.filed_confirmed}</span><span>репортов ${p.reports}</span><span>всего ${p.total}</span></span>
+    <span class="fact-row"><b>На него</b><span>жалоб ${p.against}, подтверждено ${p.against_confirmed}</span><span>репортов ${p.reports_against}</span><span>всего ${p.against_total}</span></span>
+    <span class="fact-note">${p.comment}</span>
   </span>`;
+}
+
+function PlayerTip({ p, label }) {
+  return html`<span class="has-tip" tabindex="0">${label}<span class="tip" role="tooltip"><${PlayerFacts} p=${p} /></span></span>`;
 }
 
 function ProfileBox({ title, p }) {
   if (!p) return null;
   return html`<div class="min-w-0">
-    <p class="font-semibold"><${PlayerTip} p=${p} label=${title + (p.demo ? " (пример)" : "")} /></p>
-    ${p.tags.length > 0 && html`<div class="flex flex-wrap gap-1 mt-1">${p.tags.map((x) => html`<span key=${x} class="pill">${x}</span>`)}</div>`}
-    <p class="text-[15px] text-mute mt-1">${readable(p)}</p>
-    ${p.topics.length > 0 && html`<p class="text-[15px] mt-1">Память: ${topicNames(p)}</p>`}
+    <p class="font-semibold mb-2">${title}${p.demo ? " (пример)" : ""}</p>
+    <${PlayerFacts} p=${p} />
   </div>`;
 }
 

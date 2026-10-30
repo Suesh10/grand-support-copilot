@@ -22,7 +22,8 @@ from .labels import weak_label
 
 PATH = config.ARTIFACTS_DIR / "reputation.joblib"
 MEMORY_PATH = config.ARTIFACTS_DIR / "memory.json"
-FREQUENT = 10  # с какого числа обращений игрок считается частым заявителем или частой целью жалоб
+TOPIC_NAMES = {"complaint.insult": "оскорбления", "complaint.cheat": "читы", "complaint.dm": "убийство без повода",
+               "complaint.scam": "обман", "complaint.rmt_ads": "рекламу и продажу"}
 NICK_RE = re.compile(r"\b[A-Z][a-z]+_[A-Z][a-z]+\d{0,3}\b")
 _lock = threading.Lock()
 MIN_FILED = 5  # меньше — ещё не история, профиль не создаётся
@@ -123,27 +124,25 @@ def remember(reported_hash: str | None, category: str) -> None:
         MEMORY_PATH.write_text(json.dumps(memory, ensure_ascii=False), encoding="utf-8")
 
 
-def comment(p: dict) -> tuple[list[str], str]:
-    """Пометки и вывод из цифр профиля. Только факты, без оценки игрока как человека."""
-    tags, parts = [], []
-    confirmed = next((c["count"] for c in p["criteria"] if c["name"] == CRITERIA_NAMES["approved"]), 0)
-    against = p["against"] + p["reports_against"] + p.get("new", 0)
-    if p["filed"] + p["reports"] >= FREQUENT:
-        tags.append("часто жалуется")
-    if against >= FREQUENT:
-        tags.append("на него часто жалуются")
+def comment(p: dict) -> str:
+    """Вывод из профиля: только то, чего не видно из чисел рядом."""
+    parts = []
     if p["filed"] >= MIN_FILED:
-        share = confirmed / p["filed"]
-        parts.append(f"Подтвердилось {confirmed} из {p['filed']} его жалоб.")
+        share = p["filed_confirmed"] / p["filed"]
         if share >= 0.6:
-            tags.append("жалобы обычно подтверждаются")
+            parts.append("Его жалобы обычно подтверждаются.")
         elif share < 0.3:
-            tags.append("жалобы редко подтверждаются")
+            parts.append("Его жалобы редко подтверждаются.")
     if p["against"] >= MIN_FILED:
-        parts.append(f"На него подтверждено {p['against_confirmed']} из {p['against']} жалоб.")
+        share = p["against_confirmed"] / p["against"]
+        if share >= 0.6:
+            parts.append("Жалобы на него обычно подтверждаются.")
+        elif share < 0.3:
+            parts.append("Жалобы на него редко подтверждаются.")
     if p["topics"]:
-        parts.append(f"Чаще всего жалуются на: {p['topics'][0]['code']}.")
-    return tags, " ".join(parts) or "Истории пока мало для выводов."
+        name = TOPIC_NAMES.get(p["topics"][0]["code"], "другие нарушения")
+        parts.append(f"Чаще всего на него жалуются за {name}.")
+    return " ".join(parts) or "Истории пока мало для выводов."
 
 
 @lru_cache(maxsize=1)
@@ -163,7 +162,8 @@ def profile(player_hash: str | None) -> dict | None:
         data = load() or {"filed": {}, "against": {}, "reports": {}, "template": [], "reports_against": {}, "topics": {}}
         filed = data["filed"].get(player_hash, Counter())
         against = data["against"].get(player_hash, Counter())
-        base = {"filed": filed.get("total", 0), "reports": data["reports"].get(player_hash, 0),
+        base = {"filed": filed.get("total", 0), "filed_confirmed": filed.get("approved", 0),
+                "reports": data["reports"].get(player_hash, 0),
                 "criteria": [{"name": CRITERIA_NAMES[k], "count": filed[k]} for k in data["template"] if filed.get(k)],
                 "against": against.get("total", 0), "against_confirmed": against.get("approved", 0),
                 "reports_against": data["reports_against"].get(player_hash, 0), "topics": dict(data["topics"].get(player_hash, {}))}
@@ -173,6 +173,7 @@ def profile(player_hash: str | None) -> dict | None:
     topics = Counter(base["topics"])
     topics.update(note["topics"])
     p = {**base, "new": note["new"], "total": base["filed"] + base["reports"],
+         "against_total": base["against"] + base["reports_against"] + note["new"],
          "topics": [{"code": k, "count": n} for k, n in topics.most_common(3)]}
-    p["tags"], p["comment"] = comment(p)
+    p["comment"] = comment(p)
     return p

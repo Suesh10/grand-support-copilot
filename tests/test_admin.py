@@ -38,12 +38,14 @@ def test_profile_never_changes_the_answer():
     assert triage(req) == triage({**req, "reporter_hash": "demo-reporter-2"})
 
 
-def test_profile_tags_and_comment_come_from_numbers():
+def test_profile_separates_own_and_against_and_comment_adds_new_info():
     from copilot import reputation
     p = reputation.profile("demo-reporter-2")
-    assert p["total"] == 43 and "часто жалуется" in p["tags"] and "жалобы редко подтверждаются" in p["tags"]
-    assert "3 из 31" in p["comment"]
-    assert "на него часто жалуются" in reputation.profile("demo-accused-1")["tags"]
+    assert p["total"] == 43 and p["against_total"] == 9
+    assert p["comment"].startswith("Его жалобы редко подтверждаются.")
+    assert not any(ch.isdigit() for ch in p["comment"])
+    accused = reputation.profile("demo-accused-1")
+    assert "Жалобы на него обычно подтверждаются." in accused["comment"] and "оскорбления" in accused["comment"]
 
 
 def test_appeal_is_not_counted_against_player():
