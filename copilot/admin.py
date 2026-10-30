@@ -15,7 +15,7 @@ from fastapi import APIRouter, HTTPException
 from fastapi.responses import FileResponse
 from pydantic import BaseModel
 
-from . import config, llm
+from . import config, llm, reputation
 from .normalize import normalize
 from .pipeline import triage_full
 from .predict import open_any, ticket_to_request
@@ -70,6 +70,8 @@ def load_queue() -> tuple:
             "triage": pred,
             "rules": [c for c in (rule_card(r) for r in refs) if c],
             "series": series.get(t.get("reported_nick"), 1),
+            "profiles": {"reporter": reputation.profile(t.get("reporter_hash")),
+                         "reported": reputation.profile(t.get("reported_hash"))},
             "auto": not pred["needs_human"],
         })
     items.sort(key=lambda x: (PRIORITY_ORDER.get(x["triage"]["priority"], 9), not x["triage"]["needs_human"]))

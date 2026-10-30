@@ -162,7 +162,7 @@ function toTicket(x) {
     facts: { nick, refs: tr.extracted.rule_refs.join(", ") || "нет", proof: proofs },
     ref: rule ? rule.ref : null, chips: chips.length ? chips : null,
     draft: tr.draft_reply.text, original: tr.draft_reply.text, human: tr.reasons,
-    series: x.series > 1 ? nick : null,
+    series: x.series > 1 ? nick : null, profiles: x.profiles || {},
   };
 }
 
@@ -411,6 +411,28 @@ function Rule({ t, onChip, nudge, ruleOpen, onToggle }) {
 }
 
 /* Админ выбирает исход, ИИ пишет черновик по тексту обращения; текст остаётся редактируемым. */
+/* История игрока — подсказка: только факты, решение и выводы за администратором. */
+function ProfileBox({ title, p }) {
+  if (!p) return null;
+  return html`<div class="min-w-0">
+    <p class="font-semibold">${title}${p.demo ? " (пример)" : ""}</p>
+    <p class="text-[15px] text-mute">Подал жалоб: ${p.filed}, репортов: ${p.reports}. На него жалоб: ${p.against}, подтверждено: ${p.against_confirmed}.</p>
+    <ul class="text-[15px] mt-1">${p.criteria.slice(0, 4).map((c) => html`<li key=${c.name}>${c.name}: <b class="num">${c.count}</b></li>`)}</ul>
+  </div>`;
+}
+
+function Profiles({ t }) {
+  const { reporter, reported } = t.profiles;
+  if (!reporter && !reported) return null;
+  return html`<section class="card" aria-label="История игроков">
+    <h3 class="label mb-3 flex items-center gap-2"><${UserRound} size=${16} /> История игроков: подсказка, решает админ</h3>
+    <div class="grid gap-4 md:grid-cols-2">
+      <${ProfileBox} title="Заявитель" p=${reporter} />
+      <${ProfileBox} title="Обвиняемый" p=${reported} />
+    </div>
+  </section>`;
+}
+
 function Generate({ t, generating, onGenerate }) {
   return html`<section class="card" aria-label="Сгенерировать ответ">
     <h3 class="label mb-3 flex items-center gap-2"><${Sparkles} size=${16} /> Сгенерировать ответ по обращению</h3>
@@ -448,6 +470,7 @@ function Ticket({ t, editing, generating, onGenerate, seriesCount, nudge, ruleOp
       ${t.facts.proof !== "Нет" && html`<p class="mt-3 flex items-center gap-2 text-[15px] text-mute"><${Paperclip} size=${16} /> ${t.facts.proof}</p>`}
     </section>
     <${Trace} t=${t} />
+    <${Profiles} t=${t} />
     <section class=${"card draft-card" + (editing ? " editing" : "")}>
       <label for="draft" class="label block mb-2">Черновик ответа, ${LANG[t.lang]}${editing ? " · Ctrl+Enter отправить, Esc выйти" : ""}</label>
       <textarea id="draft" ref=${areaRef} class="draft" rows="2" readOnly=${!editing} value=${t.draft} onChange=${(e) => onDraft(e.target.value)} onClick=${onEdit} onBlur=${onStopEdit}></textarea>

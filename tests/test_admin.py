@@ -18,6 +18,26 @@ def test_home_opens_admin():
     assert r.status_code == 307 and r.headers["location"] == "/admin"
 
 
+def test_queue_shows_profiles_as_facts():
+    items = client.get("/api/queue").json()["items"]
+    item = next(i for i in items if i["id"] == "demo-11")
+    assert item["profiles"]["reporter"]["filed"] == 31
+    assert item["profiles"]["reported"]["against_confirmed"] == 9
+
+
+def test_short_history_has_no_profile():
+    from copilot import reputation
+    assert reputation.profile("no-such-player") is None
+    data = reputation.build([{"kind": "complaint", "reporter_hash": "a", "reported_hash": "b", "verdict": "approved", "messages": []}])
+    assert data["filed"]["a"]["approved"] == 1 and data["against"]["b"]["total"] == 1
+
+
+def test_profile_never_changes_the_answer():
+    from copilot.pipeline import triage
+    req = {"kind": "complaint", "messages": [{"text": "оскорбил меня, скрин", "attachments": 1}]}
+    assert triage(req) == triage({**req, "reporter_hash": "demo-reporter-2"})
+
+
 def test_admin_page_served():
     r = client.get("/admin")
     assert r.status_code == 200 and "Support Copilot" in r.text

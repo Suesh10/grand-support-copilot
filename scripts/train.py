@@ -15,7 +15,7 @@ from sklearn.metrics import accuracy_score, classification_report
 
 sys.path.insert(0, str(__import__("pathlib").Path(__file__).resolve().parent.parent))
 
-from copilot import config, retrieve  # noqa: E402
+from copilot import config, reputation, retrieve  # noqa: E402
 from copilot.retrieve import USEFUL_VERDICTS  # noqa: E402
 from copilot.labels import player_text, weak_label  # noqa: E402
 from copilot.model import MODEL_PATH, build_pipeline, model_input  # noqa: E402
@@ -78,6 +78,9 @@ def main() -> None:
     config.ARTIFACTS_DIR.mkdir(parents=True, exist_ok=True)
     joblib.dump(models, MODEL_PATH, compress=3)
     print(f"Модель сохранена: {MODEL_PATH}")
+
+    joblib.dump(reputation.build(tickets), reputation.PATH, compress=3)
+    print(f"Профили игроков: {reputation.PATH}")
 
     index = retrieve.build()
     joblib.dump(index, retrieve.INDEX_PATH, compress=3)
