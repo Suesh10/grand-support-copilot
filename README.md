@@ -146,4 +146,4 @@ docs/           отчёт и примеры
 
 ## Команда
 
-Suesh10 и [ИМЯ НАПАРНИКА]
+Dilyara Kydyralina, Dulat Kydyralin, Emir Rakhmetolla
