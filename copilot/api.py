@@ -19,6 +19,7 @@ class TriageRequest(BaseModel):
     kind: str = Field("report", pattern="^(complaint|report)$")
     messages: list[Message]
     rule_refs_raw: str | None = None
+    reported_nick: str | None = None
 
 
 @app.get("/health")

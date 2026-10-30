@@ -15,7 +15,8 @@ from sklearn.metrics import accuracy_score, classification_report
 
 sys.path.insert(0, str(__import__("pathlib").Path(__file__).resolve().parent.parent))
 
-from copilot import config  # noqa: E402
+from copilot import config, retrieve  # noqa: E402
+from copilot.retrieve import USEFUL_VERDICTS  # noqa: E402
 from copilot.labels import player_text, weak_label  # noqa: E402
 from copilot.model import MODEL_PATH, build_pipeline, model_input  # noqa: E402
 from copilot.normalize import normalize  # noqa: E402
@@ -59,9 +60,28 @@ def main() -> None:
         pipe.fit([x for x, _ in data], [y for _, y in data])
         models[kind] = pipe
 
+    # Модель исхода жалобы: подсказывает, в каком тоне писать черновик.
+    data = []
+    for t in tickets:
+        if t["kind"] == "complaint" and t.get("verdict") in USEFUL_VERDICTS:
+            text = normalize(" \n".join(m.get("text", "") for m in t["messages"] if m.get("role") != "admin"))
+            data.append((model_input("complaint", text, t.get("rule_refs_raw")), t["verdict"]))
+    random.shuffle(data)
+    split = int(len(data) * 0.9)
+    pipe = build_pipeline()
+    pipe.fit([x for x, _ in data[:split]], [y for _, y in data[:split]])
+    pred = pipe.predict([x for x, _ in data[split:]])
+    print(f"\n== verdict: {len(data)} жалоб, accuracy на отложенных {accuracy_score([y for _, y in data[split:]], pred):.3f}")
+    pipe.fit([x for x, _ in data], [y for _, y in data])
+    models["verdict"] = pipe
+
     config.ARTIFACTS_DIR.mkdir(parents=True, exist_ok=True)
     joblib.dump(models, MODEL_PATH, compress=3)
     print(f"Модель сохранена: {MODEL_PATH}")
+
+    index = retrieve.build()
+    joblib.dump(index, retrieve.INDEX_PATH, compress=3)
+    print(f"Индекс похожих случаев: {len(index['cases'])} обращений → {retrieve.INDEX_PATH}")
 
 
 if __name__ == "__main__":

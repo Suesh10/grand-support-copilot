@@ -44,6 +44,9 @@ def detect_lang(text: str) -> str:
         if any(c in KK_LETTERS for c in t) or KK_HINTS.search(t):
             return "kk"
         return "ru"
+    # Узбекская латиница: oʻ, gʻ с особым апострофом внутри слова.
+    if re.search(r"[og][ʻ‘`'][a-z]", t, re.I):
+        return "uz"
     scores = {
         "uz": len(UZ_HINTS.findall(t)),
         "pt": len(PT_HINTS.findall(t)),

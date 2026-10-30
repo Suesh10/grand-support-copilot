@@ -35,6 +35,7 @@ def load() -> dict | None:
 
 
 def predict(kind: str, text: str, rule_refs_raw: str = "") -> tuple[str, float] | None:
+    """kind = complaint | report — категория; kind = verdict — вероятный исход жалобы."""
     models = load()
     if not models or kind not in models:
         return None

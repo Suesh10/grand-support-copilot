@@ -1,10 +1,47 @@
 """Черновик ответа.
 
-Офлайн-режим (без ключа LLM): шаблон по категории + проверенные цитаты правил.
-В блоке 3 сюда добавляется RAG (похожие ответы админов) и LLM.
+Офлайн-режим (без ключа LLM): ответ админа на самый похожий прошлый случай
+с тем же видом и вероятным исходом, с подставленными именами. Если индекса
+нет — шаблон по категории. Цитаты в любом случае проверяются по rules.json.
 """
 
-from .rules import load_points
+import re
+
+from . import retrieve
+from .rules import filter_valid, load_points, parse_refs
+
+NICK_RE = re.compile(r"\b[A-Z][a-z]+_[A-Z][a-z]+\d{0,3}\b")
+GREETING_NAME_RE = re.compile(r"(уважаем(ый|ая)|hurmatli|құрметті)\s*,?\s*(игрок)?\s*([,.!]|\n)", re.I)
+
+
+def adapt_reply(reply: str, source_reported: str | None, target_reported: str | None) -> str:
+    """Перенести ответ на новый случай: ник обвиняемого — на нового, остальные ники убрать."""
+    def swap(m: re.Match) -> str:
+        nick = m.group(0)
+        if source_reported and nick == source_reported:
+            return target_reported or "игрок"
+        return ""
+
+    text = NICK_RE.sub(swap, reply)
+    text = re.sub(r"\s*#\s*<digits>(-?\w*)?", "", text)
+    text = re.sub(r"<(url|email|handle|digits)>", "", text)
+    text = GREETING_NAME_RE.sub(lambda m: f"{m.group(1)} игрок{m.group(4)}", text)
+    text = re.sub(r"[ \t]+([,.!?])", r"\1", text)
+    text = re.sub(r"[ \t]{2,}", " ", text)
+    return text.strip()
+
+
+def retrieval_draft(kind: str, text: str, lang: str, verdict: str | None,
+                    reported_nick: str | None, allowed_refs: set[str]) -> dict | None:
+    """Ответ на самый похожий случай, где все упомянутые пункты относятся к нашему."""
+    for case in retrieve.similar(kind, text, k=8, verdict=verdict, lang=lang):
+        reply = adapt_reply(case["reply"], case.get("reported_nick"), reported_nick)
+        mentioned = parse_refs(reply)
+        if any(r not in allowed_refs for r in mentioned) or len(reply) < 8:
+            continue
+        reply_lang = case.get("lang") if case.get("lang") in ("ru", "kk", "uz", "en") else "ru"
+        return {"lang": reply_lang, "text": reply, "cited": filter_valid(mentioned)}
+    return None
 
 TEMPLATES = {
     "ru": {
