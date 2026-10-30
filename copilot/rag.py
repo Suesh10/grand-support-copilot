@@ -7,6 +7,7 @@
 """
 
 import json
+import re
 from functools import lru_cache
 
 from sklearn.feature_extraction.text import TfidfVectorizer
@@ -18,12 +19,17 @@ from .rules import load_points
 # Пункт, который обосновывает сам исход: это правила подачи жалоб.
 VERDICT_REFS = {"need_evidence": "1.2.2 ЖБ", "invalid_format": "1.3.1 ЖБ", "duplicate": "1.2.9 ЖБ"}
 # Основной пункт категории (taxonomy.json), если поиск и игрок ничего точнее не дали.
-PRIMARY_REFS = {"complaint.insult": "2.1 ОП", "complaint.cheat": "5.2 ОП", "complaint.dm": "5.3 ОП",
+# У DM основного пункта нет: это термин из раздела «RP термины», где нет нумерованных пунктов,
+# поэтому номер ставится, только если случай подходит под конкретный пункт.
+PRIMARY_REFS = {"complaint.insult": "2.1 ОП", "complaint.cheat": "5.2 ОП",
                 "complaint.scam": "4.1 ОП", "complaint.rmt_ads": "4.4 ОП", "complaint.admin": "3.4 ОП",
                 "complaint.invalid": "1.3.1 ЖБ"}
 # ТЗ: ответ без цитат допустим только там, где правила не нужны.
 NEEDS_CITATION = set(PRIMARY_REFS)
 MIN_SCORE = 0.08
+HOME_RE = re.compile(r"\bдом|\bквартир|\buy\b|\buyga\b|үй", re.I)
+LEFT_RP_RE = re.compile(r"уш[её]л от рп|вышел из игры|ливнул|\bлив\b|покинул", re.I)
+GZ_RE = re.compile(r"\bgz\b|\bzz\b|\bзз\b|\bгз\b|зел[её]н|yashil", re.I)
 
 
 @lru_cache(maxsize=1)
@@ -59,9 +65,8 @@ def search(text: str, category: str = "", k: int = 5) -> list[tuple[str, float]]
 
 def required(category: str, verdict: str | None, refs: list[str], cited: list[str]) -> list[str]:
     """Какие пункты обязаны быть в жалобе: по теме нарушения и, если исход на него опирается, правило жалоб."""
-    procedural = set(VERDICT_REFS.values()) | {PRIMARY_REFS["complaint.invalid"]}
-    has_topic = any(r not in procedural for r in cited)
-    topic = next((r for r in refs if r not in procedural), None)
+    has_topic = any(not r.endswith(" ЖБ") for r in cited)
+    topic = next((r for r in refs if not r.endswith(" ЖБ")), None)
     need = [] if has_topic or topic is None else [topic]
     verdict_ref = VERDICT_REFS.get(verdict or "")
     if verdict_ref and verdict_ref in refs:
@@ -75,16 +80,32 @@ def candidates(category: str, verdict: str | None, text: str, player_refs: list[
     """Пункты для черновика: от самых обоснованных к найденным поиском, без повторов."""
     points = load_points()
     hits = [ref for ref, _ in search(text, category)]
+    fits = [r for r in hits if REF_CATEGORY.get(r) == category and _applies(r, text)]
     ranked = [
         VERDICT_REFS.get(verdict or ""),
         *[r for r in player_refs if REF_CATEGORY.get(r) == category],
-        *[r for r in hits if REF_CATEGORY.get(r) == category],
+        *fits,
         PRIMARY_REFS.get(category),
-        *hits,
-        *player_refs,
     ]
+    # Поиск вне категории нужен там, где основного пункта нет. У остальных он даёт формально
+    # существующие, но неуместные пункты («Общие положения» правил жалоб).
+    if category not in PRIMARY_REFS and category != "complaint.dm":
+        ranked += [r for r in hits if not r.endswith(" ЖБ")] + player_refs
     out: list[str] = []
     for ref in ranked:
         if ref and ref in points and ref not in out:
             out.append(ref)
     return out[:6]
+
+
+def _applies(ref: str, text: str) -> bool:
+    """Узкие пункты уместны, только если игрок говорит именно об этой ситуации."""
+    if ref.endswith(" GZ"):
+        return bool(GZ_RE.search(text))
+    if ref.startswith("5.4"):
+        return bool(HOME_RE.search(text))
+    if ref.startswith("5.3"):
+        return bool(LEFT_RP_RE.search(text))
+    if ref in ("5.5 ОП", "5.9 ОП"):
+        return False
+    return True

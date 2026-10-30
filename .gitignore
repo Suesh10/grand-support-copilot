@@ -38,3 +38,4 @@ TEAM_TASKS.md
 !examples/*.jsonl
 STYLE_PROMPT.md
 .claude/
+JURY_PROMPT.md
