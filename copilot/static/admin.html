@@ -48,7 +48,8 @@
   .btn:hover { background: var(--raised); }
   .btn:active { transform: translateY(1px); }
   .btn-main { background: var(--accent); color: var(--on-accent); border-color: var(--accent); }
-  .btn-main:hover { background: #EFC63A; }
+  .btn-main:hover:not(:disabled) { background: #EFC63A; }
+  .btn:disabled { opacity: .45; cursor: not-allowed; }
   .btn-danger { color: var(--danger); }
   .key { font-family: "JetBrains Mono", monospace; font-size: 12px; font-weight: 600; line-height: 1; padding: 5px 7px; border-radius: 2px; border: 1px solid currentColor; }
 
@@ -522,8 +523,17 @@ function NotesView({ notes, onAdd, onDelete, onBack }) {
   const statuses = ["Наблюдение", "Предупреждён", "Рецидивист", "Проверен, всё чисто"];
   const [form, setForm] = useState({ nick: "", category: "complaint.insult", status: statuses[0], comment: "" });
   const set = (k) => (e) => setForm({ ...form, [k]: e.target.value });
+  const [saving, setSaving] = useState(false);
   const valid = form.nick.trim().length >= 3;
-  const submit = async () => { await onAdd({ ...form, nick: form.nick.trim() }); setForm({ ...form, nick: "", comment: "" }); };
+  const submit = async () => {
+    setSaving(true);
+    try {
+      await onAdd({ ...form, nick: form.nick.trim() });
+      setForm({ ...form, nick: "", comment: "" });
+    } finally {
+      setSaving(false);
+    }
+  };
   return html`<div class="enter gutter max-w-[880px] mx-auto py-8 grid gap-5">
     <div class="flex flex-wrap items-center gap-3">
       <button type="button" class="chip" onClick=${onBack}><${X} size=${16} /> Закрыть <span class="key">Esc</span></button>
@@ -536,7 +546,7 @@ function NotesView({ notes, onAdd, onDelete, onBack }) {
       </select></label>
       <label>Статус<select class="field" value=${form.status} onChange=${set("status")}>${statuses.map((x) => html`<option key=${x}>${x}</option>`)}</select></label>
       <label>Комментарий<input class="field" value=${form.comment} onChange=${set("comment")} maxLength="500" /></label>
-      <button type="button" class="btn btn-main" disabled=${!valid} onClick=${submit}>Сохранить профиль</button>
+      <button type="button" class="btn btn-main" disabled=${!valid || saving} onClick=${submit}>${saving ? "Сохраняю…" : "Сохранить профиль"}</button>
     </section>
     <section class="grid gap-2" aria-label="Сохранённые профили">
       ${notes.length === 0 && html`<p class="text-mute">Пока нет профилей от админов.</p>`}
@@ -627,10 +637,13 @@ function Cleared({ s, onUndo, canUndo }) {
 }
 
 function Toast({ toast, onUndo }) {
-  return html`<div role="status" aria-live="polite" class="enter fixed z-30 bottom-6 left-1/2 -translate-x-1/2 bg-[var(--raised)] border border-[var(--line)] rounded-full pl-6 pr-2 py-2 flex items-center gap-3 max-w-[calc(100%-32px)]">
-    <span class="font-semibold truncate">${toast.msg}</span>
-    <span class="num font-code text-xs text-mute flex-none">${toast.left} с</span>
-    <button type="button" class="chip flex-none" onClick=${onUndo}><${Undo2} size=${16} /> Отменить <span class="key">Z</span></button>
+  // Центрирование снаружи: transform анимации .enter иначе сбивает -translate-x-1/2, и кнопка уезжает из-под мыши.
+  return html`<div class="fixed z-30 bottom-6 left-1/2 -translate-x-1/2 w-max max-w-[calc(100vw-32px)]">
+    <div role="status" aria-live="polite" class="enter bg-[var(--raised)] border border-[var(--line)] rounded-full pl-6 pr-2 py-2 flex items-center gap-3">
+      <span class="font-semibold truncate">${toast.msg}</span>
+      <span class="num font-code text-xs text-mute flex-none">${toast.left} с</span>
+      <button type="button" class="chip flex-none" onClick=${onUndo}><${Undo2} size=${16} /> Отменить <span class="key">Z</span></button>
+    </div>
   </div>`;
 }
 

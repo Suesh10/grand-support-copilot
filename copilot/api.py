@@ -20,7 +20,7 @@ _dedupe = Deduper()
 @asynccontextmanager
 async def lifespan(_: FastAPI):
     # Прогрев: модели и индекс грузятся при старте, а не на первом запросе (p95 ≤ 5 с).
-    load_points(), model.load(), retrieve.load()
+    load_points(), model.load(), retrieve.load(), reputation.load()
     triage({"kind": "report", "messages": [{"text": "прогрев"}]})
     yield
 
