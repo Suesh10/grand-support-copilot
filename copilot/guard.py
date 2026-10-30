@@ -33,8 +33,14 @@ def check(category: str, text: str) -> list[str]:
     if THREAT_RE.search(text):
         reasons.append("возможная угроза вне игры")
     if category.startswith("complaint.") and category != "complaint.invalid":
-        reasons.append("решение о наказании подтверждает администратор")
+        reasons.append(PUNISH_REASON)
     return reasons
+
+
+PUNISH_REASON = "решение о наказании подтверждает администратор"
+# Исходы, при которых черновик никого не наказывает: просьба о доказательствах,
+# неверное оформление, дубликат. Такой ответ можно отправлять без проверки.
+NO_DECISION_VERDICTS = {"need_evidence", "invalid_format", "duplicate"}
 
 
 def has_forbidden_promise(draft: str) -> bool:

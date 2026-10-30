@@ -71,7 +71,7 @@ def triage_full(request: dict) -> tuple[dict, dict]:
     if draft is None and llm.enabled():
         refs = facts["rule_refs"] + sorted(r for r in allowed if r not in facts["rule_refs"])
         examples = [adapt_reply(c["reply"], c.get("reported_nick"), facts["nickname"])
-                    for c in retrieve.similar(kind, text, k=2, verdict=verdict, lang=lang)]
+                    for c in retrieve.similar(kind, text, k=3, verdict=verdict, lang=lang)]
         result = llm.draft(kind, lang if lang in llm.LANG_NAMES else "ru", category, verdict, text,
                            facts["nickname"], refs[:5], examples)
         if result and "_error" not in result:
@@ -90,6 +90,10 @@ def triage_full(request: dict) -> tuple[dict, dict]:
         meta["draft_source"] = "template"
     # Последний барьер: в ответ попадают только существующие пункты правил.
     draft["cited"] = filter_valid(draft["cited"])
+    # Черновик без решения о наказании (просьба о доказательствах и т.п.) не требует админа.
+    if (kind == "complaint" and verdict in guard.NO_DECISION_VERDICTS and reasons == [guard.PUNISH_REASON]
+            and meta["draft_source"] != "llm"):
+        reasons, needs_human = [], False
     if guard.has_forbidden_promise(draft["text"]):
         needs_human = True
         reason = "черновик содержит решение, которое подтверждает только администратор"

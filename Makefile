@@ -8,11 +8,14 @@ else
 endif
 PY := $(if $(wildcard $(VENV_PY)),$(VENV_PY),python3)
 
-IN ?= $(COPILOT_DATA_DIR)/tickets_valid.jsonl
+DATA ?= $(or $(COPILOT_DATA_DIR),data/support/handout)
+export COPILOT_DATA_DIR := $(DATA)
+IN ?= examples/sample_tickets.jsonl
 OUT ?= artifacts/pred.jsonl
 PORT ?= 8000
+MODEL := artifacts/classifier.joblib
 
-.PHONY: install train serve predict test
+.PHONY: install train models serve predict eval examples test
 
 install:
 	python -m venv .venv
@@ -22,12 +25,30 @@ install:
 train:
 	$(PY) scripts/train.py
 
-serve:
+# Модели обучаются на данных кейса, которые нельзя класть в репозиторий.
+# Если моделей нет, а данные есть — обучаем автоматически (~3 мин), иначе работаем на правилах.
+models:
+	@if [ ! -f $(MODEL) ]; then \
+	  if [ -f "$(DATA)/tickets_train.jsonl.gz" ]; then \
+	    echo "Модели не найдены, обучаю на $(DATA) (~3 мин)..."; $(PY) scripts/train.py; \
+	  else \
+	    echo "ВНИМАНИЕ: нет моделей и данных в $(DATA). Работаю на правилах; укажите DATA=путь/к/handout"; \
+	  fi; \
+	fi
+
+serve: models
 	$(PY) -m uvicorn copilot.api:app --host 0.0.0.0 --port $(PORT)
 
-predict:
+predict: models
 	@mkdir -p $(dir $(OUT))
 	$(PY) -m copilot.predict --in $(IN) --out $(OUT)
+
+LLM_SAMPLE ?= 100
+eval:
+	$(PY) scripts/eval.py --llm-sample $(LLM_SAMPLE)
+
+examples:
+	$(PY) scripts/examples.py
 
 test:
 	$(PY) -m pytest -q

@@ -12,7 +12,7 @@ from .rules import filter_valid, load_points, parse_refs
 
 NICK_RE = re.compile(r"\b[A-Z][a-z]+_[A-Z][a-z]+\d{0,3}\b")
 PLAYER_WORD = {"hurmatli": "o‘yinchi", "құрметті": "ойыншы"}
-GREETING_NAME_RE = re.compile(r"(уважаем(ый|ая)|hurmatli|құрметті)\s*,?\s*(игрок)?\s*([,.!]|\n)", re.I)
+GREETING_NAME_RE = re.compile(r"(уважаем(?:ый|ая)|hurmatli|құрметті)\s*(,?)\s*(?:игрок)?\s*([,.!]|\n)", re.I)
 
 
 def adapt_reply(reply: str, source_reported: str | None, target_reported: str | None) -> str:
@@ -24,9 +24,11 @@ def adapt_reply(reply: str, source_reported: str | None, target_reported: str | 
         return ""
 
     text = NICK_RE.sub(swap, reply)
-    text = re.sub(r"\s*#\s*<digits>-?", " ", text)
+    text = re.sub(r"\s*(под\s+|№\s*)?#\s*<digits>(-raqamli|-sonli)?-?", " ", text)
     text = re.sub(r"<(url|email|handle|digits)>", "", text)
-    text = GREETING_NAME_RE.sub(lambda m: f"{m.group(1)} {PLAYER_WORD.get(m.group(1).lower(), 'игрок')}{m.group(4)}", text)
+    text = GREETING_NAME_RE.sub(
+        lambda m: f"{m.group(1)} {PLAYER_WORD.get(m.group(1).lower(), 'игрок')}{m.group(2)}{m.group(3)}", text)
+    text = re.sub(r",([,.!])", r"\1", text)
     text = re.sub(r"[ \t]+([,.!?])", r"\1", text)
     text = re.sub(r"[ \t]{2,}", " ", text)
     return text.strip()
