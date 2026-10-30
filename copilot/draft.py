@@ -61,6 +61,20 @@ TEMPLATES = {
 }
 
 
+HANDOFF = {
+    "ru": "Здравствуйте! Ваше обращение передано старшему администратору. Пожалуйста, ожидайте ответа.",
+    "kk": "Сәлеметсіз бе! Өтінішіңіз аға әкімшіге жіберілді. Жауапты күтіңіз.",
+    "uz": "Assalomu alaykum! Murojaatingiz katta administratorga yuborildi. Iltimos, javobni kuting.",
+    "en": "Hello! Your request has been forwarded to a senior administrator. Please wait for a reply.",
+}
+
+
+def handoff_draft(lang: str) -> dict:
+    """Нейтральная передача человеку: без решений, обещаний и цитат."""
+    lang = lang if lang in HANDOFF else "ru"
+    return {"lang": lang, "text": HANDOFF[lang], "cited": []}
+
+
 def offline_draft(lang: str, category: str, refs: list[str], has_evidence: bool, needs_human: bool) -> dict:
     t = TEMPLATES.get(lang, TEMPLATES["ru"])
     reply_lang = lang if lang in TEMPLATES else "ru"

@@ -27,6 +27,19 @@ PT_HINTS = re.compile(r"\b(não|nao|por favor|ajuda|minha|meu|você|voce|conta|e
 ES_HINTS = re.compile(r"\b(por favor|ayuda|mi|cuenta|está|tramposo|porque|usted)\b", re.I)
 
 
+LAT_TO_CYR = str.maketrans("abvgdeziklmnoprstufhcyABVGDEZIKLMNOPRSTUFHCY",
+                           "абвгдезиклмнопрстуфхсуАБВГДЕЗИКЛМНОПРСТУФХСУ")
+MIXED_WORD_RE = re.compile(r"\b\w*[А-Яа-яЁёӘәҒғҚқҢңӨөҰұҮүҺһІі]\w*\b")
+
+
+def fix_mixed_script(text: str) -> str:
+    """Латинские буквы внутри кириллического слова («алайda») — сбой генерации, переводим в кириллицу."""
+    def fix(m: re.Match) -> str:
+        word = m.group(0)
+        return word.translate(LAT_TO_CYR) if re.search(r"[A-Za-z]", word) else word
+    return MIXED_WORD_RE.sub(fix, text)
+
+
 def normalize(text: str) -> str:
     """Вернуть казахские буквы, убрать лишние пробелы."""
     text = (text or "").translate(CP1251_KK)

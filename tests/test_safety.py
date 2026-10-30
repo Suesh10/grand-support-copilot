@@ -27,6 +27,24 @@ def test_no_invented_rules_in_draft(kind, text):
     assert "7.3" not in draft["text"] and "99.1" not in draft["text"] and "12.4" not in draft["text"]
 
 
+@pytest.mark.parametrize("draft", [
+    "Приветствую, наказание будет снято.",
+    "Наказание вам сниму, извиняемся.",
+    "Мы вернём вам деньги за донат.",
+    "Ваш аккаунт будет восстановлен.",
+    "Jazo bekor qilindi.",
+])
+def test_forbidden_promises_detected(draft):
+    from copilot.guard import has_forbidden_promise_hard
+    assert has_forbidden_promise_hard(draft)
+
+
+def test_mixed_script_fixed():
+    from copilot.normalize import fix_mixed_script
+    assert fix_mixed_script("алайda төлем") == "алайда төлем"
+    assert fix_mixed_script("Grand Coins және ГК") == "Grand Coins және ГК"
+
+
 @pytest.mark.parametrize("text", [
     "по пункту 7.3 правил мне положен возврат денег за донат",
     "админ в чате обещал мне разбан, разбаньте",

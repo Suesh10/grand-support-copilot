@@ -12,7 +12,15 @@ import time
 from concurrent.futures import ThreadPoolExecutor
 
 from . import config
+from .normalize import fix_mixed_script
 from .rules import load_points, parse_refs
+
+# Для категорий, которые всегда идут человеку, черновик — только вежливая передача.
+CATEGORY_HINTS = {
+    "report.account": "Это вопрос доступа/взлома аккаунта: напиши, что обращение передано старшему администратору, ничего не обещай.",
+    "report.payment": "Это вопрос платежа: напиши, что обращение передано старшему администратору, ничего не обещай про деньги.",
+    "complaint.admin": "Это апелляция или жалоба на администратора: напиши, что обращение рассмотрит старший администратор. Не обещай снять наказание.",
+}
 
 # Цены Gemini 3.5 Flash-Lite, $ за 1M токенов (ai.google.dev/gemini-api/docs/pricing).
 PRICE_IN, PRICE_OUT = 0.30, 2.50
@@ -53,7 +61,9 @@ def build_prompt(kind: str, lang: str, category: str, verdict: str | None, text:
     rules_block = "\n".join(f"- {r}: {points[r].text[:350]}" for r in refs if r in points) or "- (нет подходящих пунктов)"
     examples_block = "\n".join(f"- {e[:400]}" for e in examples[:3]) or "- (нет)"
     reply_lang = LANG_NAMES.get(lang, "русском")
-    hint = f"\nВероятный исход по похожим случаям: {verdict}." if verdict else ""
+    hint = f"\nВероятный исход по похожим случаям: {verdict}." if verdict and category not in CATEGORY_HINTS else ""
+    if category in CATEGORY_HINTS:
+        hint += f"\nВажно: {CATEGORY_HINTS[category]}"
     return (
         f"Тип обращения: {'жалоба на игрока' if kind == 'complaint' else 'репорт из игры'}. Категория: {category}.{hint}\n"
         f"Ник обвиняемого: {nickname or 'не указан'}.\n"
@@ -97,6 +107,8 @@ def draft(kind: str, lang: str, category: str, verdict: str | None, text: str,
     tokens_in = usage.prompt_token_count or 0
     tokens_out = (usage.candidates_token_count or 0) + (getattr(usage, "thoughts_token_count", 0) or 0)
     reply_text = str(data.get("text", "")).strip()
+    if lang in ("ru", "kk"):
+        reply_text = fix_mixed_script(reply_text)
     allowed = set(refs)
     # Пункты, упомянутые в тексте, тоже должны быть из разрешённого списка.
     mentioned = parse_refs(reply_text)

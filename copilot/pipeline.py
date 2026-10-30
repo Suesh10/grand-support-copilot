@@ -2,7 +2,7 @@
 
 from . import classify as clf
 from . import guard, llm, model, retrieve
-from .draft import adapt_reply, offline_draft, retrieval_draft
+from .draft import adapt_reply, handoff_draft, offline_draft, retrieval_draft
 from .extract import extract
 from .labels import REF_CATEGORY
 from .normalize import detect_lang, normalize
@@ -94,6 +94,12 @@ def triage_full(request: dict) -> tuple[dict, dict]:
     if (kind == "complaint" and verdict in guard.NO_DECISION_VERDICTS and reasons == [guard.PUNISH_REASON]
             and meta["draft_source"] != "llm"):
         reasons, needs_human = [], False
+    if guard.has_forbidden_promise_hard(draft["text"]):
+        # Разбан, снятие наказания, возврат — не обещаем никогда: заменяем нейтральной передачей человеку.
+        draft = handoff_draft(draft["lang"])
+        meta["draft_source"] = "handoff"
+        needs_human = True
+        reasons.append("черновик обещал разбан или возврат — заменён, решение за администратором")
     if guard.has_forbidden_promise(draft["text"]):
         needs_human = True
         reason = "черновик содержит решение, которое подтверждает только администратор"
