@@ -8,7 +8,7 @@
 import re
 
 from . import model
-from .labels import REPORT_RULES
+from .labels import APPEAL_TEXT_RE, REPORT_RULES
 
 CRITICAL_REPORT = {"report.account", "report.payment"}
 P0_RE = re.compile(r"взлом|украл[иа]? акк|убью|найду тебя|суицид|у всех|массов|сервер упал|никто не может", re.I)
@@ -26,7 +26,7 @@ KEYWORDS = {
     "report.question": r"как |где |когда |почему |что делать|\?",
 }
 
-EMPTY_RE = re.compile(r"^[\W\d_]*(помогите|помоги|ау|алло|админ|\+|help|hi|привет)?[\W\d_]*$", re.I)
+EMPTY_RE = re.compile(r"^[\W\d_]*(ау|алло|админ|\+|hi|привет)?[\W\d_]*$", re.I)
 
 PRIORITY_BY_CATEGORY = {
     "report.account": "p0",
@@ -39,7 +39,7 @@ PRIORITY_BY_CATEGORY = {
     "complaint.admin": "p2",
     "complaint.other": "p2",
     "report.complaint": "p2",
-    "report.help": "p2",
+    "report.help": "p3",
     "complaint.invalid": "p3",
     "report.question": "p3",
     "report.offtopic": "p3",
@@ -59,6 +59,9 @@ def classify(kind: str, text: str, has_evidence: bool, rule_refs_raw: str = "") 
         category, conf = "report.offtopic", 0.9
     elif predicted:
         category, conf = predicted
+        # Апелляция на бан за читы похожа на жалобу на читы — явные маркеры апелляции важнее модели.
+        if kind == "complaint" and APPEAL_TEXT_RE.search(f"{rule_refs_raw}\n{text[:200]}"):
+            category, conf = "complaint.admin", max(conf, 0.75)
         if kind == "report":
             for cat, rx in REPORT_RULES:
                 if cat in CRITICAL_REPORT and rx.search(text):

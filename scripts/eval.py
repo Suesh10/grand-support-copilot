@@ -39,6 +39,15 @@ GOLD_PATH = ROOT / "data" / "gold" / "label_me.xlsx"
 
 
 def load_gold() -> dict[str, dict]:
+    csv_path = GOLD_PATH.with_name("gold.csv")
+    if csv_path.exists():
+        import csv
+        gold = {}
+        for rec in csv.DictReader(open(csv_path, encoding="utf-8-sig"), delimiter=";"):
+            if rec.get("category") and rec.get("priority"):
+                gold[rec["ticket_id"]] = {"category": rec["category"].strip(), "priority": rec["priority"].strip(),
+                                          "needs_human": rec.get("needs_human", "").strip().lower() == "да"}
+        return gold
     if not GOLD_PATH.exists():
         return {}
     from openpyxl import load_workbook
@@ -118,6 +127,9 @@ def main() -> None:
                                                 average="macro", zero_division=0), 3),
             "needs_human_accuracy": round(accuracy_score([x["needs_human"] for x, _ in g],
                                                          [p["needs_human"] for _, p in g]), 3),
+            "priority_accuracy": round(accuracy_score([x["priority"] for x, _ in g], [p["priority"] for _, p in g]), 3),
+            "category_confusion": confusion([(x["category"], p["category"]) for x, p in g]),
+            "priority_confusion": confusion([(x["priority"], p["priority"]) for x, p in g]),
         }
 
     # --- Галлюцинации: каждая цитата и каждый упомянутый пункт должны существовать ---

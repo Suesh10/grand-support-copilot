@@ -7,7 +7,7 @@
 
 import re
 
-from . import retrieve
+from . import retrieve, templates
 from .rules import filter_valid, load_points, parse_refs
 
 NICK_RE = re.compile(r"\b[A-Z][a-z]+_[A-Z][a-z]+\d{0,3}\b")
@@ -63,8 +63,8 @@ TEMPLATES = {
 
 HANDOFF = {
     "ru": "Здравствуйте! Ваше обращение передано старшему администратору. Пожалуйста, ожидайте ответа.",
-    "kk": "Сәлеметсіз бе! Өтінішіңіз аға әкімшіге жіберілді. Жауапты күтіңіз.",
-    "uz": "Assalomu alaykum! Murojaatingiz katta administratorga yuborildi. Iltimos, javobni kuting.",
+    "kk": templates.KK["senior"],
+    "uz": templates.UZ["senior"],
     "en": "Hello! Your request has been forwarded to a senior administrator. Please wait for a reply.",
 }
 

@@ -25,6 +25,8 @@ REF_CATEGORY = {
     "4.1 ОП": "complaint.scam", "4.2 ОП": "complaint.scam",
     "2.3 ОП": "complaint.rmt_ads", "4.4 ОП": "complaint.rmt_ads",
     "3.2 ОП": "complaint.admin", "3.4 ОП": "complaint.admin",
+    "1.1 GZ": "complaint.dm", "1.2 GZ": "complaint.dm", "1.3 GZ": "complaint.dm",
+    "1.4 GZ": "complaint.dm", "1.5 GZ": "complaint.dm",
 }
 
 RP_DM_RE = re.compile(r"\b(dm|дм|sk|ск|db|дб|tk|тк|nonrp|нонрп|non rp|pg|пг|mg|мг)\b", re.I)
@@ -37,16 +39,33 @@ TEXT_RULES = [
 ]
 
 APPEAL_VERDICTS = {"appeal_rejected", "appeal_approved"}
-APPEAL_TEXT_RE = re.compile(r"не согласен|не согласна|несогласен|снимите|наказали (меня|зря)|выдал(и)? (мне )?(бан|наказ)", re.I)
+# Апелляция на своё наказание или жалоба на действия администратора.
+APPEAL_TEXT_RE = re.compile(
+    r"не согласен|не согласна|несогласен|снимите|наказали (меня|зря)|выдал(и)? (мне )?(бан|наказ)|"
+    r"обжалов|разбан|разблок|пересмотр|^\W*за что\W*$|в каком месте я|"
+    r"(дали|выдали|получил[а]?)\b.{0,25}(без причины|просто так|ни за что|незаслуж)|"
+    r"(без причины|ни за что|незаслуж\w*)\b.{0,25}(дали|выдали|бан|мут|варн|предупрежд|наказ)|"
+    r"готов сменить ник|сменю ник|ban\s*yechil|bandan\s*chiqar|nohaq|noqonuniy|naqonuniy|kechiri|"
+    r"admin\w*\s.{0,30}(nohaq|noto['ʻ‘]?g['ʻ‘]?ri|qaror)|жазаны алып|бантан шығар|"
+    # «за что бан», просьба пересмотреть решение, признание/оправдание по своему наказанию
+    r"за что\b.{0,15}(бан|мут|варн|посадил|наказ|блок)|прошу рассмотреть (данное |это |мо[её] )?решение|"
+    r"не үшін бан|ban berdi|(мне|меня) заблокировали|я (его|её|ее) даже не|"
+    r"понимаю,? что (сотворил|совершил|был неправ|ошиб)|посадил\w*.{0,25}просто так|где софт у меня|"
+    # жалоба на поведение администратора
+    r"(адм\w*|admin\w*|администрац\w*)\b.{0,50}(не следит|ничего не делает|просто следят?|неправильно|"
+    r"неадекват|hech nima qilmay|suiste|huquq)|неправильно отвечает|(rep|репорт)\w*\s+javob|ангажир|\bблат",
+    re.I | re.M)
 
 REPORT_RULES = [
     ("report.account", re.compile(r"взлом|украл|пароль|доступ к акк|зайти в акк|пропал[аио]? (машин|дом|деньг|имущ)", re.I)),
     ("report.payment", re.compile(r"донат|оплат|платеж|платёж|не пришл[иа] (деньг|донат|гк)|списал", re.I)),
-    ("report.help", re.compile(r"застрял|текстур|телепорт|\bтп\b|\bбаг|эвакуат|спавн|провалил|в воде|не могу выйти|вытащ", re.I)),
+    ("report.help", re.compile(r"застрял|текстур|телепорт|\bтп\b|\bбаг|эвакуат|спавн|провалил|в воде|не могу выйти|вытащ|"
+                               r"переверн|потер(ял|ял?ся|івся)|измерени|^\W*(помогите|помоги|помо7ите|поможіт\w*|yordam|help)\W*$",
+                               re.I | re.M)),
     ("report.complaint", re.compile(r"оск|дм\b|\bdm\b|убил|чит|нарушает|наказ|жалоб|\bдб\b|\bsk\b", re.I)),
     ("report.question", re.compile(r"\?|как |где |когда |почему |сколько |можно ли|что делать", re.I)),
 ]
-OFFTOPIC_RE = re.compile(r"^[\W\d_]*(помогите|помоги|ау+|алло|админ|адм|\+|help|hi|привет|здравствуйте|ку)?[\W\d_]*$", re.I)
+OFFTOPIC_RE = re.compile(r"^[\W\d_]*(ау+|алло|админ|адм|\+|hi|привет|здравствуйте|ку)?[\W\d_]*$", re.I)
 
 
 def player_text(ticket: dict) -> str:
@@ -69,7 +88,7 @@ def weak_label(ticket: dict) -> str | None:
         return None
 
     verdict = ticket.get("verdict")
-    if verdict in APPEAL_VERDICTS or APPEAL_TEXT_RE.search(text[:120]):
+    if verdict in APPEAL_VERDICTS or APPEAL_TEXT_RE.search(text[:200]):
         return "complaint.admin"
 
     violation = ticket.get("violation") or ""
@@ -83,12 +102,13 @@ def weak_label(ticket: dict) -> str | None:
     for ref in parse_refs(raw):
         if ref in REF_CATEGORY:
             return REF_CATEGORY[ref]
-    if RP_DM_RE.search(raw) or re.search(r"\bgz\b|зел[её]н", raw, re.I):
+    if RP_DM_RE.search(raw) or re.search(r"gz\b|зел[её]н|\bnrp\b|\bнрп\b", raw, re.I):
         return "complaint.dm"
     for cat, rx in TEXT_RULES:
         if rx.search(raw):
             return cat
 
-    if verdict in ("invalid_format", "need_evidence"):
+    # «Нужны доказательства» — это исход, а не тема: категорию по нему не ставим.
+    if verdict == "invalid_format":
         return "complaint.invalid"
     return None

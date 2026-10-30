@@ -12,6 +12,9 @@ APPEAL_RE = re.compile(r"апелляц|разбан|разблок|снимит
 HACK_RE = re.compile(r"взлом|взломал|украли акк|сменили пароль|hacked|buzish", re.I)
 PAYMENT_RE = re.compile(r"донат|оплат|платеж|платёж|списал|верните деньги|refund|возврат", re.I)
 THREAT_RE = re.compile(r"убью|найду тебя|суицид|покончу|адрес|в реале", re.I)
+# Попытка управлять сервисом через текст обращения (prompt injection).
+INJECTION_RE = re.compile(r"игнорир\w* .{0,20}(инструкц|правил)|ignore (all|previous|the above)|needs_human|"
+                          r"system prompt|системн\w+ промпт|ты (теперь|больше не)", re.I)
 
 # Решение о наказании другого игрока: допустимо в черновике только с needs_human
 # (так в примере контракта из ТЗ), админ подтверждает его перед отправкой.
@@ -47,6 +50,8 @@ def check(category: str, text: str) -> list[str]:
         reasons.append("вопрос о платеже или возврате")
     if THREAT_RE.search(text):
         reasons.append("возможная угроза вне игры")
+    if INJECTION_RE.search(text):
+        reasons.append("попытка управлять ответом через текст обращения")
     if category.startswith("complaint.") and category != "complaint.invalid":
         reasons.append(PUNISH_REASON)
     return reasons

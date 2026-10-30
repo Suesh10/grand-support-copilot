@@ -1,7 +1,7 @@
 """Главная функция: обращение → ответ по контракту POST /triage."""
 
 from . import classify as clf
-from . import guard, llm, model, retrieve
+from . import guard, llm, model, retrieve, templates
 from .draft import adapt_reply, handoff_draft, offline_draft, retrieval_draft
 from .extract import extract
 from .labels import REF_CATEGORY
@@ -65,13 +65,19 @@ def triage_full(request: dict) -> tuple[dict, dict]:
         template = retrieve.report_template(category)
         if template:
             draft, meta["draft_source"] = {"lang": "ru", "text": template, "cited": []}, "template"
+    # Репорты на казахском и узбекском: шаблон носителя языка, тоже без LLM.
+    if kind == "report" and lang in templates.BY_LANG:
+        template = templates.get(lang, templates.REPORT_SITUATION.get(category, "senior"))
+        if template:
+            draft, meta["draft_source"] = {"lang": lang, "text": template, "cited": []}, "template"
 
     verdict = likely_verdict(kind, category, text, rule_refs_raw)
     allowed = relevant_refs(category, facts)
     if draft is None and llm.enabled():
         refs = facts["rule_refs"] + sorted(r for r in allowed if r not in facts["rule_refs"])
-        examples = [adapt_reply(c["reply"], c.get("reported_nick"), facts["nickname"])
-                    for c in retrieve.similar(kind, text, k=3, verdict=verdict, lang=lang)]
+        examples = templates.style_examples(lang, kind, verdict) + [
+            adapt_reply(c["reply"], c.get("reported_nick"), facts["nickname"])
+            for c in retrieve.similar(kind, text, k=3, verdict=verdict, lang=lang)]
         result = llm.draft(kind, lang if lang in llm.LANG_NAMES else "ru", category, verdict, text,
                            facts["nickname"], refs[:5], examples)
         if result and "_error" not in result:
@@ -82,6 +88,12 @@ def triage_full(request: dict) -> tuple[dict, dict]:
             draft = result
         elif result:
             meta["llm_error"] = result["_error"]
+    # Офлайн на kk/uz: шаблон по вероятному исходу лучше, чем чужой русский ответ.
+    if draft is None and lang in templates.BY_LANG:
+        situation = "senior" if category in guard.ALWAYS_HUMAN else templates.VERDICT_SITUATION.get(verdict or "")
+        template = templates.get(lang, situation) if situation else None
+        if template:
+            draft, meta["draft_source"] = {"lang": lang, "text": template, "cited": []}, "template"
     if draft is None and category not in ALWAYS_TEMPLATE:
         draft = retrieval_draft(kind, text, lang, verdict, facts["nickname"], allowed)
         meta["draft_source"] = "retrieval" if draft else None
