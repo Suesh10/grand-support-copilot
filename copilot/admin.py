@@ -26,6 +26,9 @@ router = APIRouter()
 STATIC = Path(__file__).parent / "static"
 QUEUE_PATH = os.getenv("COPILOT_QUEUE", str(config.ROOT / "examples" / "sample_tickets.jsonl"))
 FEEDBACK_PATH = config.ARTIFACTS_DIR / "feedback.jsonl"
+ARCHIVE_PATH = config.ARTIFACTS_DIR / "archive.json"
+DELETED_PATH = config.ARTIFACTS_DIR / "deleted_tickets.json"
+RETENTION_DAYS = 30  # через сколько дней сайт предлагает удалить, но сам не удаляет
 PRIORITY_ORDER = {"p0": 0, "p1": 1, "p2": 2, "p3": 3}
 GENERATE_VERDICTS = {"approved", "need_evidence", "rejected", "invalid_format", "duplicate"}
 
@@ -78,6 +81,19 @@ def load_queue() -> tuple:
     return tuple(items)
 
 
+def read_archive() -> list[dict]:
+    return json.loads(ARCHIVE_PATH.read_text(encoding="utf-8")) if ARCHIVE_PATH.exists() else []
+
+
+def write_archive(items: list[dict]) -> None:
+    ARCHIVE_PATH.parent.mkdir(parents=True, exist_ok=True)
+    ARCHIVE_PATH.write_text(json.dumps(items, ensure_ascii=False), encoding="utf-8")
+
+
+def read_deleted() -> list[str]:
+    return json.loads(DELETED_PATH.read_text(encoding="utf-8")) if DELETED_PATH.exists() else []
+
+
 class Feedback(BaseModel):
     ticket_id: str
     action: str  # send | edit | escalate | undo | merge
@@ -87,6 +103,8 @@ class Feedback(BaseModel):
     ai_category: str = ""
     priority: str = ""
     reported_hash: str | None = None
+    nick: str | None = None
+    review_seconds: int | None = None
 
 
 @router.get("/admin")
@@ -97,8 +115,11 @@ def admin_page() -> FileResponse:
 @router.get("/api/queue")
 def api_queue() -> dict:
     # Профили считаем при каждом запросе: они меняются от решений админа.
+    # Удалённые тоже помним по id: иначе решённый тикет вернётся в очередь как новый.
+    closed = {x["ticket_id"] for x in read_archive()} | set(read_deleted())
     items = [{**x, "profiles": {"reporter": reputation.profile(x["reporter_hash"]),
-                                "reported": reputation.profile(x["reported_hash"])}} for x in load_queue()]
+                                "reported": reputation.profile(x["reported_hash"])}}
+             for x in load_queue() if x["id"] not in closed]
     return {"items": items, "llm": llm.enabled(), "notes": reputation.read_notes()}
 
 
@@ -141,6 +162,37 @@ def api_feedback(fb: Feedback) -> dict:
         f.write(json.dumps(record, ensure_ascii=False) + "\n")
     if fb.action == "send" and fb.category.startswith("complaint."):
         reputation.remember(fb.reported_hash, fb.category)
+    items = [x for x in read_archive() if x["ticket_id"] != fb.ticket_id]
+    if fb.action in ("send", "escalate", "merge"):
+        items.append({"ticket_id": fb.ticket_id, "nick": fb.nick, "category": fb.category, "action": fb.action,
+                      "reply": fb.draft_after, "closed_at": record["ts"], "review_seconds": fb.review_seconds})
+    write_archive(items)
+    return {"ok": True}
+
+
+@router.get("/api/archive")
+def api_archive() -> dict:
+    """Завершённые обращения. Старше 30 дней попадают в список на удаление: решает админ.
+
+    Эскалация не считается окончательным ответом: игрок ещё ждёт человека, удалять нечего.
+    """
+    now = time.time()
+    items = [{**x, "age_days": int((now - x["closed_at"]) // 86400), "deletable": x["action"] != "escalate"}
+             for x in read_archive()]
+    return {"items": items, "retention_days": RETENTION_DAYS,
+            "to_delete": [x["ticket_id"] for x in items if x["deletable"] and x["age_days"] >= RETENTION_DAYS]}
+
+
+@router.delete("/api/archive/{ticket_id}")
+def api_archive_delete(ticket_id: str) -> dict:
+    items = read_archive()
+    item = next((x for x in items if x["ticket_id"] == ticket_id), None)
+    if item is None:
+        raise HTTPException(status_code=404, detail="в архиве такого обращения нет")
+    if item["action"] == "escalate":
+        raise HTTPException(status_code=409, detail="обращение передано человеку, ответа ещё нет")
+    write_archive([x for x in items if x["ticket_id"] != ticket_id])
+    DELETED_PATH.write_text(json.dumps([*read_deleted(), ticket_id], ensure_ascii=False), encoding="utf-8")
     return {"ok": True}
 
 
@@ -153,7 +205,8 @@ class Note(BaseModel):
 
 @router.post("/api/notes")
 def api_add_note(note: Note) -> dict:
-    return reputation.add_note(note.model_dump())
+    data = note.model_dump()
+    return reputation.add_note({**data, "lookup": reputation.lookup(data["nick"], data["category"])})
 
 
 @router.delete("/api/notes/{note_id}")

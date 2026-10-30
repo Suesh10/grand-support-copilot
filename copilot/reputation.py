@@ -88,7 +88,8 @@ def build(tickets) -> dict:
     count = sum(c["total"] for c in filed.values()) or 1
     template = [name for name, n in total.most_common() if n / count >= MIN_SHARE]
     return {"filed": dict(filed), "against": dict(against), "reports": dict(reports), "template": template,
-            "reports_against": dict(reports_against), "topics": dict(topics)}
+            "reports_against": dict(reports_against), "topics": dict(topics),
+            "nicks": {nick.lower(): h for nick, h in nick_to_hash.items()}}
 
 
 def build_from_train() -> dict:
@@ -143,6 +144,32 @@ def delete_note(note_id: int) -> None:
         notes = [n for n in read_notes() if n["id"] != note_id]
         NOTES_PATH.parent.mkdir(parents=True, exist_ok=True)
         NOTES_PATH.write_text(json.dumps(notes, ensure_ascii=False), encoding="utf-8")
+
+
+def find_hash(nick: str) -> str | None:
+    """Игрок по нику. Ники есть только у обвиняемых: у заявителей в данных один хэш."""
+    wanted = nick.strip().lower()
+    for player_hash, item in demo().items():
+        if item.get("nick", "").lower() == wanted:
+            return player_hash
+    return (load() or {}).get("nicks", {}).get(wanted)
+
+
+def lookup(nick: str, category: str) -> dict:
+    """Что известно об игроке: критерии и итог. Если данных нет, так и говорим."""
+    player_hash = find_hash(nick)
+    if not player_hash:
+        return {"found": False, "summary": "Данных об этом игроке нет."}
+    p = profile(player_hash)
+    if not p:
+        return {"found": False, "summary": "Игрок найден, но истории мало для выводов."}
+    same = next((t["count"] for t in p["topics"] if t["code"] == category), 0)
+    parts = [] if p["comment"].startswith("Выводов") else [p["comment"]]
+    if same:
+        parts.append(f"По этому виду нарушения на него уже есть обращения: {same}.")
+    elif p["against"]:
+        parts.append("По этому виду нарушения обращений на него не было.")
+    return {"found": True, "profile": p, "summary": " ".join(parts) or "Выводов из истории пока нет."}
 
 
 def comment(p: dict) -> str:

@@ -86,6 +86,70 @@ def test_admin_notes_template(tmp_path, monkeypatch):
     assert client.get("/api/queue").json()["notes"] == []
 
 
+def test_saving_profile_looks_up_player(tmp_path, monkeypatch):
+    from copilot import reputation
+    monkeypatch.setattr(reputation, "NOTES_PATH", tmp_path / "notes.json")
+    note = {"category": "complaint.insult", "status": "Наблюдение"}
+    found = client.post("/api/notes", json={**note, "nick": "arman_petrov"}).json()["lookup"]
+    assert found["found"] is True and found["profile"]["against"] == 14
+    assert "уже есть обращения: 11" in found["summary"]
+    other = client.post("/api/notes", json={**note, "nick": "Arman_Petrov", "category": "complaint.scam"}).json()["lookup"]
+    assert "не было" in other["summary"]
+    missing = client.post("/api/notes", json={**note, "nick": "Nobody_Known"}).json()["lookup"]
+    assert missing == {"found": False, "summary": "Данных об этом игроке нет."}
+
+
+def test_archive_review_time_and_delete_request(tmp_path, monkeypatch):
+    import time
+    monkeypatch.setattr(admin, "FEEDBACK_PATH", tmp_path / "f.jsonl")
+    monkeypatch.setattr(admin, "ARCHIVE_PATH", tmp_path / "a.json")
+    body = {"ticket_id": "demo-06", "action": "send", "category": "report.help", "nick": "Oleg_Ivanov", "review_seconds": 42}
+    client.post("/api/feedback", json=body)
+    data = client.get("/api/archive").json()
+    assert data["items"][0]["review_seconds"] == 42 and data["to_delete"] == []
+    assert "demo-06" not in [i["id"] for i in client.get("/api/queue").json()["items"]]
+    old = admin.read_archive()
+    old[0]["closed_at"] = time.time() - 31 * 86400
+    admin.write_archive(old)
+    assert client.get("/api/archive").json()["to_delete"] == ["demo-06"]
+    assert len(admin.read_archive()) == 1  # сам сайт не удаляет
+    assert client.delete("/api/archive/demo-06").json()["ok"] is True
+    assert admin.read_archive() == []
+    assert client.delete("/api/archive/demo-06").status_code == 404
+
+
+def test_undo_returns_ticket_to_queue(tmp_path, monkeypatch):
+    monkeypatch.setattr(admin, "FEEDBACK_PATH", tmp_path / "f.jsonl")
+    monkeypatch.setattr(admin, "ARCHIVE_PATH", tmp_path / "a.json")
+    body = {"ticket_id": "demo-06", "action": "send", "category": "report.help"}
+    client.post("/api/feedback", json=body)
+    client.post("/api/feedback", json={**body, "action": "undo"})
+    assert "demo-06" in [i["id"] for i in client.get("/api/queue").json()["items"]]
+
+
+def test_deleted_ticket_does_not_return_to_queue():
+    client.post("/api/feedback", json={"ticket_id": "demo-06", "action": "send", "category": "report.help"})
+    assert client.delete("/api/archive/demo-06").json()["ok"] is True
+    assert "demo-06" not in [i["id"] for i in client.get("/api/queue").json()["items"]]
+
+
+def test_escalated_stays_in_archive_and_cannot_be_deleted():
+    import time
+    client.post("/api/feedback", json={"ticket_id": "demo-06", "action": "escalate", "category": "report.help"})
+    old = admin.read_archive()
+    old[0]["closed_at"] = time.time() - 31 * 86400
+    admin.write_archive(old)
+    data = client.get("/api/archive").json()
+    assert data["items"][0]["deletable"] is False and data["to_delete"] == []
+    assert client.delete("/api/archive/demo-06").status_code == 409
+    assert len(admin.read_archive()) == 1
+
+
+def test_merged_can_be_deleted():
+    client.post("/api/feedback", json={"ticket_id": "demo-06", "action": "merge", "category": "report.help"})
+    assert client.get("/api/archive").json()["items"][0]["deletable"] is True
+
+
 def test_admin_page_served():
     r = client.get("/admin")
     assert r.status_code == 200 and "Support Copilot" in r.text
