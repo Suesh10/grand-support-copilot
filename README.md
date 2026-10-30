@@ -69,7 +69,7 @@ curl -X POST localhost:8000/triage -H "Content-Type: application/json" -d '{"kin
 | `make train` | обучает модели и строит индекс похожих случаев |
 | `make eval` | считает отчёт на валидации: метрики, стоимость, p95 |
 | `make examples` | пересобирает `docs/examples.md` |
-| `make test` | запускает тесты |
+| `make test DATA=/путь/к/handout` | запускает тесты, без данных они пропускаются |
 
 ## Как это устроено
 

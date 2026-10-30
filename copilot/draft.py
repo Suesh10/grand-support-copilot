@@ -8,6 +8,7 @@
 import re
 
 from . import retrieve, templates
+from .normalize import detect_lang
 from .rules import filter_valid, load_points, parse_refs
 
 NICK_RE = re.compile(r"\b[A-Z][a-z]+_[A-Z][a-z]+\d{0,3}\b")
@@ -51,8 +52,9 @@ def retrieval_draft(kind: str, text: str, lang: str, verdict: str | None,
         mentioned = parse_refs(reply)
         if any(r not in allowed_refs for r in mentioned) or len(reply) < 8:
             continue
-        reply_lang = case.get("lang") if case.get("lang") in ("ru", "kk", "uz", "en") else "ru"
-        return {"lang": reply_lang, "text": reply, "cited": filter_valid(mentioned)}
+        # Язык берём по самому ответу: на казахские и английские обращения админы часто отвечали по-русски.
+        reply_lang = detect_lang(reply)
+        return {"lang": reply_lang if reply_lang != "und" else "ru", "text": reply, "cited": filter_valid(mentioned)}
     return None
 
 TEMPLATES = {

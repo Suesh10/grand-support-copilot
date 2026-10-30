@@ -12,7 +12,7 @@ from .rules import filter_valid, short_ref
 ALWAYS_TEMPLATE = {"report.account", "report.payment"}
 
 
-FOREIGN_LANGS = {"en", "es", "pt"}
+REPLY_LANGS = {"kk", "uz", "en", "es", "pt"}
 CITATION_LINE = {"ru": "Основание: пункт {ref}.", "kk": "Негіз: {ref} тармағы.", "uz": "Asos: {ref} bandi.",
                  "en": "Reference: rule {ref}.", "es": "Referencia: regla {ref}.", "pt": "Referência: regra {ref}."}
 SIGNATURE_RE = re.compile(r"(с уважением|hurmat bilan|құрметпен)", re.I)
@@ -114,8 +114,8 @@ def triage_full(request: dict, verdict_override: str | None = None) -> tuple[dic
     if draft is None:
         draft = offline_draft(lang, category, facts["rule_refs"], facts["has_evidence"], needs_human)
         meta["draft_source"] = "template"
-    # Шаблонов на en/es/pt нет: без LLM не отвечаем игроку по-русски, а передаём человеку на его языке.
-    if lang in FOREIGN_LANGS and draft["lang"] != lang:
+    # Не отвечаем игроку на чужом языке: без подходящего текста передаём человеку на языке игрока.
+    if lang in REPLY_LANGS and draft["lang"] != lang:
         draft = handoff_draft(lang)
         meta["draft_source"] = "handoff"
         needs_human = True
