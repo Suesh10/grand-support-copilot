@@ -1,12 +1,24 @@
 """HTTP-сервис: POST /triage по контракту из ТЗ."""
 
+from contextlib import asynccontextmanager
+
 from fastapi import FastAPI
 from pydantic import BaseModel, Field
 
-from . import __version__
+from . import __version__, llm, model, retrieve
 from .pipeline import triage
+from .rules import load_points
 
-app = FastAPI(title="Support Copilot", version=__version__)
+
+@asynccontextmanager
+async def lifespan(_: FastAPI):
+    # Прогрев: модели и индекс грузятся при старте, а не на первом запросе (p95 ≤ 5 с).
+    load_points(), model.load(), retrieve.load()
+    triage({"kind": "report", "messages": [{"text": "прогрев"}]})
+    yield
+
+
+app = FastAPI(title="Support Copilot", version=__version__, lifespan=lifespan)
 
 
 class Message(BaseModel):
@@ -24,7 +36,9 @@ class TriageRequest(BaseModel):
 
 @app.get("/health")
 def health() -> dict:
-    return {"status": "ok", "version": __version__}
+    return {"status": "ok", "version": __version__,
+            "model_loaded": model.load() is not None, "index_loaded": retrieve.load() is not None,
+            "llm": llm.enabled()}
 
 
 @app.post("/triage")

@@ -1,8 +1,8 @@
 """Главная функция: обращение → ответ по контракту POST /triage."""
 
 from . import classify as clf
-from . import guard, model, retrieve
-from .draft import offline_draft, retrieval_draft
+from . import guard, llm, model, retrieve
+from .draft import adapt_reply, offline_draft, retrieval_draft
 from .extract import extract
 from .labels import REF_CATEGORY
 from .normalize import detect_lang, normalize
@@ -39,7 +39,8 @@ def player_text(messages: list[dict]) -> str:
     return " \n".join(normalize(m.get("text", "")) for m in messages if m.get("role") != "admin")
 
 
-def triage(request: dict) -> dict:
+def triage_full(request: dict) -> tuple[dict, dict]:
+    """Ответ по контракту + служебные данные (источник черновика, токены, стоимость, задержка)."""
     kind = request.get("kind", "report")
     messages = request.get("messages", [])
     text = player_text(messages)
@@ -57,23 +58,45 @@ def triage(request: dict) -> dict:
     reasons = guard.check(category, text)
     needs_human = bool(reasons)
 
+    meta = {"draft_source": None}
     draft = None
+    # Типовые репорты на русском: частый ответ админов, без LLM и бесплатно.
     if kind == "report" and category not in ALWAYS_TEMPLATE and lang in ("ru", "und"):
         template = retrieve.report_template(category)
         if template:
-            draft = {"lang": "ru", "text": template, "cited": []}
+            draft, meta["draft_source"] = {"lang": "ru", "text": template, "cited": []}, "template"
+
+    verdict = likely_verdict(kind, category, text, rule_refs_raw)
+    allowed = relevant_refs(category, facts)
+    if draft is None and llm.enabled():
+        refs = facts["rule_refs"] + sorted(r for r in allowed if r not in facts["rule_refs"])
+        examples = [adapt_reply(c["reply"], c.get("reported_nick"), facts["nickname"])
+                    for c in retrieve.similar(kind, text, k=2, verdict=verdict, lang=lang)]
+        result = llm.draft(kind, lang if lang in llm.LANG_NAMES else "ru", category, verdict, text,
+                           facts["nickname"], refs[:5], examples)
+        if result and "_error" not in result:
+            meta.update(result.pop("_meta"), draft_source="llm")
+            if result.pop("needs_human"):
+                needs_human = True
+            reasons += [r for r in result.pop("reasons") if r not in reasons]
+            draft = result
+        elif result:
+            meta["llm_error"] = result["_error"]
     if draft is None and category not in ALWAYS_TEMPLATE:
-        verdict = likely_verdict(kind, category, text, rule_refs_raw)
-        draft = retrieval_draft(kind, text, lang, verdict, facts["nickname"], relevant_refs(category, facts))
+        draft = retrieval_draft(kind, text, lang, verdict, facts["nickname"], allowed)
+        meta["draft_source"] = "retrieval" if draft else None
     if draft is None:
         draft = offline_draft(lang, category, facts["rule_refs"], facts["has_evidence"], needs_human)
+        meta["draft_source"] = "template"
     # Последний барьер: в ответ попадают только существующие пункты правил.
     draft["cited"] = filter_valid(draft["cited"])
     if guard.has_forbidden_promise(draft["text"]):
         needs_human = True
-        reasons.append("черновик содержит обещание, которое может дать только администратор")
+        reason = "черновик содержит решение, которое подтверждает только администратор"
+        if reason not in reasons:
+            reasons.append(reason)
 
-    return {
+    result = {
         "lang": lang,
         "category": category,
         "priority": priority,
@@ -84,3 +107,9 @@ def triage(request: dict) -> dict:
         "confidence": round(confidence, 2),
         "reasons": reasons,
     }
+    return result, meta
+
+
+def triage(request: dict) -> dict:
+    """Ответ строго по контракту POST /triage."""
+    return triage_full(request)[0]

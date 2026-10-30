@@ -19,6 +19,6 @@ VALID_PATH = DATA_DIR / "tickets_valid.jsonl"
 ARTIFACTS_DIR = Path(os.getenv("COPILOT_ARTIFACTS_DIR", ROOT / "artifacts"))
 
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY", "")
-LLM_MODEL = os.getenv("COPILOT_LLM_MODEL", "gemini-2.5-flash-lite")
+LLM_MODEL = os.getenv("COPILOT_LLM_MODEL", "gemini-3.5-flash-lite")
 # offline — черновик без LLM (из шаблонов), auto — LLM если есть ключ.
 LLM_MODE = os.getenv("COPILOT_LLM_MODE", "auto")
