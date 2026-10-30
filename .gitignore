@@ -36,3 +36,5 @@ FRIEND_PROMPT.md
 DEEPSEEK_PROMPT.md
 TEAM_TASKS.md
 !examples/*.jsonl
+STYLE_PROMPT.md
+.claude/

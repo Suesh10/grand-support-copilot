@@ -56,6 +56,21 @@ def enabled() -> bool:
     return config.LLM_MODE != "offline" and bool(config.GEMINI_API_KEY)
 
 
+def translate(text: str) -> str | None:
+    """Перевод на русский для админа (подсказка в интерфейсе). None — если LLM недоступен."""
+    global _CLIENT
+    if not enabled() or not text.strip():
+        return None
+    try:
+        _CLIENT = _CLIENT or _client()
+        future = _POOL.submit(
+            _CLIENT.models.generate_content, model=config.LLM_MODEL,
+            contents=f"Переведи на русский. Ответь только переводом, без пояснений.\n\n{text[:800]}")
+        return future.result(timeout=TIMEOUT_S).text.strip()
+    except Exception:
+        return None
+
+
 def build_prompt(kind: str, lang: str, category: str, verdict: str | None, text: str,
                  nickname: str | None, refs: list[str], examples: list[str]) -> str:
     points = load_points()

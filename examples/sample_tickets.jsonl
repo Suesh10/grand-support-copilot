@@ -8,3 +8,5 @@
 {"ticket_id": "demo-08", "kind": "report", "lang": "ru", "messages": [{"role": "player", "text": "взломали аккаунт, сменили пароль, пропала машина"}]}
 {"ticket_id": "demo-09", "kind": "report", "lang": "ru", "messages": [{"role": "player", "text": "+"}]}
 {"ticket_id": "demo-10", "kind": "report", "lang": "ru", "messages": [{"role": "player", "text": "как получить права на грузовик?"}]}
+{"ticket_id": "demo-11", "kind": "complaint", "lang": "ru", "reported_nick": "Arman_Petrov", "rule_refs_raw": "2.1", "images_count": 1, "messages": [{"role": "player", "text": "Arman_Petrov матерится в чате на всех, скрин приложил"}]}
+{"ticket_id": "demo-12", "kind": "complaint", "lang": "ru", "reported_nick": "Arman_Petrov", "rule_refs_raw": "оск родни", "images_count": 1, "messages": [{"role": "player", "text": "оскорбил мою мать, Arman_Petrov, вот доказательства"}]}

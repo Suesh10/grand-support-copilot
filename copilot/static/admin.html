@@ -1,0 +1,233 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Support Copilot — очередь админа</title>
+<style>
+/* Вся тема здесь: чтобы сменить стиль, достаточно поменять переменные. */
+:root {
+  --bg: #f6f6f4; --surface: #ffffff; --border: #dfdfda; --text: #1d1d1b; --muted: #5f5f58;
+  --accent: #1f5fbf; --accent-text: #ffffff; --danger: #b3261e; --warn-bg: #fff4d6; --warn-text: #7a5200;
+  --p0: #b3261e; --p1: #b86200; --p2: #1f5fbf; --p3: #5f5f58;
+  --radius: 8px; --font: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  --mono: ui-monospace, Consolas, monospace;
+}
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--bg); color: var(--text); font: 15px/1.5 var(--font); }
+header { display: flex; flex-wrap: wrap; gap: 16px; align-items: center; padding: 10px 20px; background: var(--surface); border-bottom: 1px solid var(--border); }
+header b { font-size: 16px; }
+.muted { color: var(--muted); }
+.hint { margin-left: auto; font: 12px var(--mono); color: var(--muted); }
+.layout { display: flex; flex-wrap: wrap; align-items: stretch; min-height: calc(100vh - 50px); }
+nav { flex: 1 1 300px; max-width: 380px; border-right: 1px solid var(--border); background: var(--surface); }
+main { flex: 999 1 560px; min-width: 0; padding: 20px 28px; display: flex; flex-direction: column; gap: 14px; max-width: 980px; }
+.group { padding: 10px 14px 4px; font-size: 12px; font-weight: 700; color: var(--muted); text-transform: uppercase; }
+.row { display: flex; gap: 10px; width: 100%; padding: 10px 14px; border: 0; border-left: 3px solid transparent; background: none; color: inherit; font: inherit; text-align: left; cursor: pointer; }
+.row:hover { background: var(--bg); }
+.row[aria-current="true"] { border-left-color: var(--accent); background: var(--bg); }
+.row .t { display: block; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.row .m { display: block; font-size: 12px; color: var(--muted); }
+.row > span:last-child { min-width: 0; }
+.prio { flex: none; height: fit-content; padding: 1px 6px; border-radius: 4px; color: #fff; font: 700 11px var(--mono); text-transform: uppercase; }
+.prio.p0 { background: var(--p0); } .prio.p1 { background: var(--p1); } .prio.p2 { background: var(--p2); } .prio.p3 { background: var(--p3); }
+.tag { padding: 2px 8px; border: 1px solid var(--border); border-radius: 999px; font-size: 12px; background: var(--surface); }
+.tag.warn { background: var(--warn-bg); border-color: transparent; color: var(--warn-text); }
+.line { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+h1 { margin: 0; font-size: 20px; }
+.card { padding: 12px 16px; background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); }
+.card h2 { margin: 0 0 6px; font-size: 12px; color: var(--muted); text-transform: uppercase; }
+.card p { margin: 0; }
+.tr { margin-top: 6px; color: var(--accent); font-size: 14px; }
+.ref { font: 700 14px var(--mono); }
+.chips { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
+.chip { min-height: 36px; padding: 4px 12px; border: 1px solid var(--border); border-radius: 999px; background: var(--surface); color: inherit; font: inherit; font-size: 13px; cursor: pointer; }
+.chip:hover { border-color: var(--accent); }
+.banner { padding: 10px 14px; background: var(--warn-bg); color: var(--warn-text); border-radius: var(--radius); }
+textarea { width: 100%; min-height: 110px; padding: 12px; border: 1px solid var(--border); border-radius: var(--radius); background: var(--surface); color: inherit; font: inherit; resize: vertical; }
+button.act { min-height: 44px; padding: 0 20px; border: 1px solid var(--border); border-radius: var(--radius); background: var(--surface); color: inherit; font: inherit; font-weight: 600; cursor: pointer; }
+button.act.primary { background: var(--accent); border-color: var(--accent); color: var(--accent-text); }
+button.act.danger { color: var(--danger); border-color: var(--danger); }
+kbd { font: 11px var(--mono); opacity: .7; }
+#toast { position: fixed; left: 50%; bottom: 20px; transform: translateX(-50%); display: none; gap: 14px; align-items: center; padding: 10px 16px; background: var(--text); color: var(--bg); border-radius: var(--radius); }
+#toast button { background: none; border: 0; color: inherit; font: inherit; font-weight: 700; text-decoration: underline; cursor: pointer; min-height: 32px; }
+:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+</style>
+</head>
+<body>
+<header>
+  <b>Support Copilot</b>
+  <span class="muted" id="counts"></span>
+  <span class="hint">↑↓ тикеты · Enter отправить · E править · X эскалировать</span>
+</header>
+<div class="layout">
+  <nav aria-label="Очередь" id="queue"></nav>
+  <main id="detail"><p class="muted">Загрузка очереди…</p></main>
+</div>
+<div id="toast" role="status"><span id="toastText"></span><button type="button" id="undo">Отменить</button></div>
+
+<script>
+const LANGS = { ru: 'русский', kk: 'казахский', uz: 'узбекский', en: 'английский', es: 'испанский', pt: 'португальский', und: 'не определён' };
+let items = [], done = new Map(), currentId = null, drafts = {}, lastAction = null, toastTimer = null;
+
+const $ = (id) => document.getElementById(id);
+function el(tag, props = {}, ...children) {
+  const node = Object.assign(document.createElement(tag), props);
+  for (const c of children) if (c != null) node.append(c);
+  return node;
+}
+const open = () => items.filter((x) => !done.has(x.id));
+const manual = () => open().filter((x) => !x.auto);
+const auto = () => open().filter((x) => x.auto);
+const preview = (x) => (x.messages[0]?.text || '').slice(0, 60);
+const draftOf = (x) => drafts[x.id] ?? x.triage.draft_reply.text;
+
+function row(x) {
+  const b = el('button', { type: 'button', className: 'row', onclick: () => select(x.id) },
+    el('span', { className: 'prio ' + x.triage.priority, textContent: x.triage.priority }),
+    el('span', {}, el('span', { className: 't', textContent: preview(x) }),
+      el('span', { className: 'm', textContent: `${x.triage.category} · ${x.triage.lang}${x.series > 1 ? ' · серия ×' + x.series : ''}` })));
+  b.setAttribute('aria-current', x.id === currentId);
+  return b;
+}
+
+function renderQueue() {
+  const q = $('queue'); q.replaceChildren();
+  q.append(el('div', { className: 'group', textContent: `Нужен человек · ${manual().length}` }));
+  manual().forEach((x) => q.append(row(x)));
+  q.append(el('div', { className: 'group', textContent: `Можно автоматически · ${auto().length}` }));
+  auto().forEach((x) => q.append(row(x)));
+  $('counts').textContent = `в очереди ${open().length} · обработано ${done.size}`;
+}
+
+function applyPunishment(x, text) {
+  const value = text.split(':').slice(1).join(':').trim() || text;
+  const base = draftOf(x).replace(/\n?Наказание: .*$/m, '').trimEnd();
+  drafts[x.id] = `${base}\nНаказание: ${value}.`;
+  renderDetail();
+}
+
+function renderDetail() {
+  const d = $('detail'); d.replaceChildren();
+  const x = items.find((i) => i.id === currentId);
+  if (!x) { d.append(el('p', { className: 'muted', textContent: 'Очередь пуста.' })); return; }
+  const t = x.triage;
+
+  d.append(el('div', { className: 'line' },
+    el('h1', { textContent: t.category }),
+    el('span', { className: 'prio ' + t.priority, textContent: t.priority }),
+    el('span', { className: 'tag', textContent: LANGS[t.lang] || t.lang }),
+    el('span', { className: 'tag' + (t.confidence < 0.7 ? ' warn' : ''), textContent: 'уверенность ' + t.confidence }),
+    t.is_spam_or_duplicate ? el('span', { className: 'tag', textContent: 'пусто / спам' }) : null,
+    t.needs_human ? el('span', { className: 'tag warn', textContent: 'нужен человек' }) : null));
+
+  if (x.series > 1) {
+    d.append(el('div', { className: 'banner line' },
+      el('span', { textContent: `На ${t.extracted.nickname} всего ${x.series} жалобы в очереди.` }),
+      el('button', { type: 'button', className: 'chip', textContent: 'Объединить серию', onclick: () => mergeSeries(x) })));
+  }
+
+  const player = el('section', { className: 'card' }, el('h2', { textContent: `Игрок${x.images ? ' · вложений: ' + x.images : ''}` }));
+  x.messages.forEach((m) => player.append(el('p', { textContent: (m.role === 'reported_player' ? 'Обвиняемый: ' : '') + m.text })));
+  const trPlayer = el('p', { className: 'tr', hidden: true });
+  player.append(trPlayer);
+  d.append(player);
+
+  const facts = t.extracted;
+  d.append(el('div', { className: 'line muted' },
+    el('span', { textContent: `Ник: ${facts.nickname || '—'}` }),
+    el('span', { textContent: `Пункты: ${facts.rule_refs.join(', ') || '—'}` }),
+    el('span', { textContent: `Доказательства: ${facts.has_evidence ? 'есть' : 'нет'}` })));
+
+  x.rules.forEach((r) => {
+    const chips = el('div', { className: 'chips' });
+    r.punishments.forEach((p) => chips.append(el('button', { type: 'button', className: 'chip', textContent: p, onclick: () => applyPunishment(x, p) })));
+    d.append(el('section', { className: 'card' }, el('span', { className: 'ref', textContent: r.ref + ' ✓ ' }),
+      el('span', { className: 'muted', textContent: r.section }), el('p', { textContent: r.text }), r.punishments.length ? chips : null));
+  });
+
+  const ta = el('textarea', { id: 'draft', value: draftOf(x), oninput: (e) => { drafts[x.id] = e.target.value; } });
+  ta.setAttribute('aria-label', 'Черновик ответа');
+  const trDraft = el('p', { className: 'tr', hidden: true });
+  d.append(el('section', {}, el('label', { htmlFor: 'draft', className: 'muted', textContent: `Черновик (${t.draft_reply.lang})` }), ta, trDraft));
+
+  if (t.reasons.length) d.append(el('p', { className: 'muted', style: 'margin:0', textContent: 'Почему человек: ' + t.reasons.join('; ') }));
+
+  const btn = (label, key, cls, fn) => { const b = el('button', { type: 'button', className: 'act ' + cls, onclick: fn }, label + ' ', el('kbd', { textContent: key })); return b; };
+  d.append(el('div', { className: 'line' },
+    btn('Отправить', 'Enter', 'primary', () => act('send')),
+    btn('Править', 'E', '', () => ta.focus()),
+    btn('Эскалировать', 'X', 'danger', () => act('escalate'))));
+
+  if (t.lang === 'kk' || t.lang === 'uz') {
+    fetch('/api/translate/' + encodeURIComponent(x.id)).then((r) => r.json()).then((tr) => {
+      if (x.id !== currentId) return;
+      if (tr.player) { trPlayer.textContent = 'Перевод: ' + tr.player; trPlayer.hidden = false; }
+      if (tr.draft) { trDraft.textContent = 'Что отправим: ' + tr.draft; trDraft.hidden = false; }
+    }).catch(() => {});
+  }
+}
+
+function select(id) { currentId = id; renderQueue(); renderDetail(); }
+
+function log(x, action) {
+  fetch('/api/feedback', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({
+    ticket_id: x.id, action, draft_before: x.triage.draft_reply.text, draft_after: draftOf(x),
+    category: x.triage.category, priority: x.triage.priority }) });
+}
+
+function act(action) {
+  const x = items.find((i) => i.id === currentId);
+  if (!x) return;
+  const list = open(), idx = list.findIndex((i) => i.id === x.id);
+  const next = list[idx + 1] || list[idx - 1];
+  done.set(x.id, action); log(x, action); lastAction = x;
+  currentId = next ? next.id : null;
+  renderQueue(); renderDetail();
+  showToast(action === 'send' ? 'Отправлено' : 'Передано старшему');
+}
+
+function mergeSeries(x) {
+  const nick = x.triage.extracted.nickname;
+  const same = open().filter((i) => i.id !== x.id && i.triage.extracted.nickname === nick);
+  same.forEach((i) => { done.set(i.id, 'merge'); log(i, 'merge'); });
+  x.series = 1; renderQueue(); renderDetail();
+  showToast(`Объединено жалоб: ${same.length + 1}`);
+  lastAction = null;
+}
+
+function showToast(text) {
+  $('toastText').textContent = text;
+  $('undo').hidden = !lastAction;
+  $('toast').style.display = 'flex';
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => { $('toast').style.display = 'none'; lastAction = null; }, 5000);
+}
+
+$('undo').onclick = () => {
+  if (!lastAction) return;
+  done.delete(lastAction.id); log(lastAction, 'undo');
+  $('toast').style.display = 'none';
+  select(lastAction.id); lastAction = null;
+};
+
+document.addEventListener('keydown', (e) => {
+  const typing = e.target.tagName === 'TEXTAREA';
+  if (e.key === 'Escape' && typing) { e.target.blur(); return; }
+  if (e.key === 'Enter' && e.ctrlKey) { e.preventDefault(); act('send'); return; }
+  if (typing || e.target.tagName === 'BUTTON' && e.key === 'Enter') return;
+  const list = open(), idx = list.findIndex((i) => i.id === currentId);
+  if (e.key === 'ArrowDown' && list[idx + 1]) { e.preventDefault(); select(list[idx + 1].id); }
+  else if (e.key === 'ArrowUp' && list[idx - 1]) { e.preventDefault(); select(list[idx - 1].id); }
+  else if (e.key === 'Enter') { e.preventDefault(); act('send'); }
+  else if (e.key.toLowerCase() === 'x' || e.key.toLowerCase() === 'ч') act('escalate');
+  else if (e.key.toLowerCase() === 'e' || e.key.toLowerCase() === 'у') { e.preventDefault(); $('draft')?.focus(); }
+});
+
+fetch('/api/queue').then((r) => r.json()).then((data) => {
+  items = data.items;
+  select(manual()[0]?.id ?? open()[0]?.id ?? null);
+});
+</script>
+</body>
+</html>

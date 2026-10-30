@@ -6,6 +6,7 @@ from fastapi import FastAPI
 from pydantic import BaseModel, Field
 
 from . import __version__, llm, model, retrieve
+from .admin import router as admin_router
 from .pipeline import triage
 from .rules import load_points
 
@@ -19,6 +20,7 @@ async def lifespan(_: FastAPI):
 
 
 app = FastAPI(title="Support Copilot", version=__version__, lifespan=lifespan)
+app.include_router(admin_router)
 
 
 class Message(BaseModel):
