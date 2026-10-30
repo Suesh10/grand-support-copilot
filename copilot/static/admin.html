@@ -61,6 +61,11 @@
   .sticker:hover { transform: scale(1.06); }
   .sticker[aria-current="true"] { outline: 3px solid var(--accent); outline-offset: 3px; }
 
+  .tab { width: 100%; min-height: 56px; display: flex; align-items: center; gap: 10px; padding: 8px 10px; border-radius: 2px; border: 1px solid transparent; text-align: left; font-size: 14px; font-weight: 600; line-height: 1.25; }
+  .tab:hover { background: var(--raised); }
+  .tab[aria-current="true"] { border-color: var(--accent); }
+  .count { flex: none; min-width: 34px; height: 34px; padding: 0 8px; display: grid; place-items: center; border-radius: 999px; color: var(--on-accent); font-size: 15px; font-weight: 700; }
+  .card-row { background: var(--paper); border: 1px solid var(--line); }
   .row { width: 100%; text-align: left; min-height: 64px; padding: 10px 12px; display: flex; align-items: center; gap: 12px; border-radius: 2px; border: 1px solid transparent; }
   .row:hover { background: var(--raised); }
   .row[aria-current="true"] { border-color: var(--line); }
@@ -85,13 +90,14 @@
 
   @media (min-width: 760px) {
     .app { height: 100%; }
-    .layout { display: grid; grid-template-columns: 92px minmax(0, 1fr); min-height: 0; flex: 1; }
+    .layout { display: grid; grid-template-columns: 200px minmax(0, 1fr); min-height: 0; flex: 1; }
     .rail { overflow-y: auto; min-height: 0; flex-direction: column; }
     .main { overflow-y: auto; min-height: 0; }
-    .drawer { left: 92px; width: 380px; }
+    .drawer { left: 200px; width: 380px; }
   }
   @media (max-width: 759px) {
     .rail { overflow-x: auto; }
+    .tab { width: auto; flex: none; }
     .card { padding: 20px; }
     .drawer { left: 0; width: 100%; }
     .hide-phone { display: none; }
@@ -166,6 +172,22 @@ async function loadQueue() {
 }
 
 
+const TYPE_NAMES = {
+  "complaint.insult": "Оскорбления", "complaint.cheat": "Читы", "complaint.dm": "Убийство без повода", "complaint.scam": "Обман",
+  "complaint.rmt_ads": "Реклама и продажа", "complaint.admin": "Апелляции и админы", "complaint.other": "Другие жалобы", "complaint.invalid": "Неоформленные",
+  "report.question": "Вопросы", "report.help": "Помощь", "report.complaint": "Жалобы из игры", "report.account": "Аккаунт и взлом",
+  "report.payment": "Платежи", "report.offtopic": "Оффтоп",
+};
+/* Типы обращений: срочные сверху, внутри уровня — где обращений больше. */
+function groupsOf(tickets) {
+  const map = new Map();
+  tickets.forEach((t) => {
+    const g = map.get(t.cat) || { cat: t.cat, name: TYPE_NAMES[t.cat] || t.cat, p: t.p, items: [] };
+    g.p = Math.min(g.p, t.p); g.items.push(t); map.set(t.cat, g);
+  });
+  return [...map.values()].sort((a, b) => a.p - b.p || b.items.length - a.items.length);
+}
+
 const P = [
   { name: "Критично", color: "var(--p0)" },
   { name: "Срочно", color: "var(--p1)" },
@@ -198,36 +220,36 @@ function Header({ s, onMenu }) {
   </header>`;
 }
 
-function PlayerCard({ t, top, left }) {
-  const low = t.conf < LOW_CONF;
-  return html`<div role="tooltip" class="player-card fixed z-30 w-[320px] rounded-[2px] border border-[var(--line)] bg-[var(--raised)] p-4 pointer-events-none" style=${{ top, left }}>
-    <div class="flex items-center justify-between gap-2">
-      <p class="font-bold text-[17px] truncate">${t.from}</p>
-      <span class="badge flex-none" style=${{ background: P[t.p].color, height: 26, fontSize: 13, padding: "0 10px" }}>P${t.p}</span>
-    </div>
-    <p class="text-sm text-mute">${t.server} · ${LANG[t.lang]}</p>
-    <p class="font-code text-xs text-mute mt-2">${t.cat}</p>
-    <p class="text-[15px] mt-2 line-clamp-3">${t.textRu || t.text}</p>
-    ${t.facts.nick && html`<p class="text-sm text-mute mt-2">Жалоба на ${t.facts.nick}</p>`}
-    <div class="mt-2 flex flex-wrap gap-x-3 text-sm">
-      ${t.human.length > 0 && html`<span class="inline-flex items-center gap-1"><${UserRound} size=${14} /> Нужен человек</span>`}
-      ${low && html`<span class="inline-flex items-center gap-1 text-warnt"><${TriangleAlert} size=${14} /> Низкая уверенность</span>`}
-    </div>
-  </div>`;
+function Rail({ s, activeId, openGroup, onGroup, onMenu }) {
+  const active = s.tickets.find((t) => t.id === activeId);
+  return html`<nav aria-label="Типы обращений" class="rail flex gap-2 bg-[var(--paper)] border-r border-[var(--line)] p-3">
+    <button type="button" class="tab" onClick=${onMenu} aria-label="Открыть очередь и цели" title="Очередь и цели (Q)"><${Menu} size=${18} /><span>Вся очередь</span></button>
+    ${groupsOf(s.tickets).map((g) => html`<button key=${g.cat} type="button" class="tab" onClick=${() => onGroup(g.cat)}
+        aria-current=${openGroup === g.cat || (!openGroup && active && active.cat === g.cat)} aria-label=${g.name + ", обращений: " + g.items.length}>
+      <span class="count" style=${{ background: P[g.p].color }}>${g.items.length}</span>
+      <span>${g.name}</span>
+    </button>`)}
+  </nav>`;
 }
 
-function Rail({ s, activeId, onPick, onMenu }) {
-  const [hover, setHover] = useState(null);
-  const shown = hover && s.tickets.find((t) => t.id === hover.id);
-  const show = (id, el) => {
-    const r = el.getBoundingClientRect();
-    setHover({ id, top: Math.max(8, Math.min(r.top, window.innerHeight - 250)), left: Math.min(el.closest("nav").getBoundingClientRect().right + 8, window.innerWidth - 336) });
-  };
-  return html`<nav aria-label="Очередь" class="rail flex gap-3 items-center bg-[var(--paper)] border-r border-[var(--line)] p-4 md:px-0" onScroll=${() => setHover(null)}>
-    <button type="button" class="sticker" style=${{ color: "var(--text)", border: "1px solid var(--line)" }} onClick=${onMenu} aria-label="Открыть очередь и цели" title="Очередь и цели (Q)"><${Menu} size=${20} /></button>
-    ${s.tickets.map((t) => html`<button key=${t.id} type="button" class="sticker" data-row=${t.id} aria-current=${t.id === activeId} aria-label=${"P" + t.p + " " + t.from + ", " + t.cat} style=${{ background: P[t.p].color }} onClick=${() => onPick(t.id)} onMouseEnter=${(e) => show(t.id, e.currentTarget)} onMouseLeave=${() => setHover(null)} onFocus=${(e) => show(t.id, e.currentTarget)} onBlur=${() => setHover(null)}>${initials(t.from)}</button>`)}
-    ${shown && html`<${PlayerCard} key=${shown.id} t=${shown} top=${hover.top} left=${hover.left} />`}
-  </nav>`;
+/* Весь экран одного типа: все обращения списком, клик открывает обращение. */
+function GroupView({ g, onPick, onBack }) {
+  return html`<div class="enter gutter max-w-[880px] mx-auto py-8 grid gap-4">
+    <div class="flex flex-wrap items-center gap-3">
+      <button type="button" class="chip" onClick=${onBack}><${X} size=${16} /> Закрыть <span class="key">Esc</span></button>
+      <h2 class="font-display text-[30px] font-bold leading-tight">${g.name}</h2>
+      <span class="badge" style=${{ background: P[g.p].color }}>${g.items.length}</span>
+    </div>
+    <div class="grid gap-2">
+      ${g.items.map((t) => html`<button key=${t.id} type="button" class="row card-row" onClick=${() => onPick(t.id)}>
+        <span class="badge flex-none" style=${{ background: P[t.p].color, height: 26, fontSize: 13, padding: "0 10px" }}>P${t.p}</span>
+        <span class="min-w-0 flex-1">
+          <span class="block font-semibold truncate">${t.textRu || t.text}</span>
+          <span class="block text-sm text-mute truncate">${t.facts.nick ? "На " + t.facts.nick + " · " : ""}${LANG[t.lang]} · ${t.human.length ? "решает админ" : "можно отправлять"}</span>
+        </span>
+      </button>`)}
+    </div>
+  </div>`;
 }
 
 function Goal({ title, value, total, done, onClick, hint }) {
@@ -395,7 +417,7 @@ function Numbers() {
 function Cleared({ s, onUndo, canUndo }) {
   return html`<div class="enter gutter max-w-[880px] mx-auto py-12 grid gap-6 text-center justify-items-center">
     <h2 class="font-display text-4xl font-bold">Очередь закрыта</h2>
-    <p class="text-mute text-lg">Отправлено ${s.sent}, передано старшему ${s.escalated}, автоматически ${AUTO_TOTAL}. Решения по наказаниям принимал админ.</p>
+    <p class="text-mute text-lg">Отправлено ${s.sent}, передано администрации ${s.escalated}, автоматически ${AUTO_TOTAL}. Решения по наказаниям принимал админ.</p>
     ${canUndo && html`<button type="button" class="btn" onClick=${onUndo}><${Undo2} size=${20} /> Вернуть последний</button>`}
     <div class="w-full text-left"><${Numbers} /></div>
   </div>`;
@@ -429,6 +451,7 @@ function App() {
   const [s, setS] = useState({ tickets: TICKETS, sent: 0, escalated: 0, clean: 0, autoChecked: [], rulesRead: false });
   const [activeId, setActiveId] = useState(TICKETS[0] ? TICKETS[0].id : null);
   const [generating, setGenerating] = useState(null);
+  const [groupOpen, setGroupOpen] = useState(null);
   const [drawer, setDrawer] = useState(false);
   const [autoOpen, setAutoOpen] = useState(false);
   const [ruleOpen, setRuleOpen] = useState(false);
@@ -459,7 +482,9 @@ function App() {
   const leave = (t, patch) => {
     const i = s.tickets.findIndex((x) => x.id === t.id);
     const rest = s.tickets.filter((x) => x.id !== t.id);
-    setActiveId(rest.length ? rest[Math.min(i, rest.length - 1)].id : null);
+    // Следующим идёт обращение того же типа: так разбирают одинаковые подряд.
+    const same = rest.find((x) => x.cat === t.cat);
+    setActiveId(same ? same.id : rest.length ? rest[Math.min(i, rest.length - 1)].id : null);
     return { ...s, tickets: rest, ...patch };
   };
 
@@ -474,7 +499,7 @@ function App() {
     if (!active) return;
     log(active, "escalate");
     const next = leave(active, { escalated: s.escalated + 1 });
-    act("Передано старшему", () => next);
+    act("Передано администрации", () => next);
   };
   const merge = () => {
     if (!active || !active.series) return;
@@ -537,7 +562,8 @@ function App() {
     translate(text).then((ru) => { if (ru) patchTicket(id, (t) => ({ ...t, textRu: ru })); });
     translate(draft).then((ru) => { if (ru) patchTicket(id, (t) => (t.draftRu ? t : { ...t, draftRu: ru })); });
   }, [activeId]);
-  const pick = (id) => { setActiveId(id); setDrawer(false); };
+  const pick = (id) => { setActiveId(id); setDrawer(false); setGroupOpen(null); };
+  const group = groupOpen ? groupsOf(s.tickets).find((g) => g.cat === groupOpen) : null;
 
   useEffect(() => {
     if (!toast) return;
@@ -549,11 +575,10 @@ function App() {
   useEffect(() => {
     setEditing(false);
     const main = document.querySelector(".main"); if (main) main.scrollTop = 0;
-    const el = document.querySelector(`[data-row="${activeId}"]`); if (el) el.scrollIntoView({ block: "nearest", inline: "nearest" });
   }, [activeId]);
 
   const keys = useRef({});
-  keys.current = { stopEdit: () => setEditing(false), send, escalate, merge, undo, edit, move, applyChip, active, setAutoOpen, setDrawer, setRuleOpen };
+  keys.current = { setGroupOpen, stopEdit: () => setEditing(false), send, escalate, merge, undo, edit, move, applyChip, active, setAutoOpen, setDrawer, setRuleOpen };
   useEffect(() => {
     const onKey = (e) => {
       const k = keys.current;
@@ -569,7 +594,7 @@ function App() {
         if (e.target.tagName !== "BUTTON" && !e.repeat) { e.preventDefault(); k.send(); }
       } else if (e.code === "ArrowDown") { e.preventDefault(); k.move(1); }
       else if (e.code === "ArrowUp") { e.preventDefault(); k.move(-1); }
-      else if (e.code === "Escape") k.setDrawer(false);
+      else if (e.code === "Escape") { k.setDrawer(false); k.setGroupOpen(null); }
       else if (e.repeat) return;
       else if (e.code === "KeyE") { e.preventDefault(); k.edit(); }
       else if (e.code === "KeyX") k.escalate();
@@ -592,9 +617,9 @@ function App() {
   return html`<div class="app flex flex-col min-h-full">
     <${Header} s=${s} />
     <div class="layout">
-      <${Rail} s=${s} activeId=${activeId} onPick=${pick} onMenu=${() => setDrawer(!drawer)} />
+      <${Rail} s=${s} activeId=${activeId} openGroup=${group ? group.cat : null} onGroup=${setGroupOpen} onMenu=${() => setDrawer(!drawer)} />
       <main class="main min-w-0">
-        ${active
+        ${group ? html`<${GroupView} g=${group} onPick=${pick} onBack=${() => setGroupOpen(null)} />` : active
           ? html`<${Ticket} t=${active} editing=${editing} generating=${generating} onGenerate=${generate} seriesCount=${seriesCount} nudge=${nudge} areaRef=${areaRef} ruleOpen=${ruleOpen} onToggleRule=${() => setRuleOpen(!ruleOpen)}
               onDraft=${(v) => patchActive((t) => ({ ...t, draft: v, edited: true }))} onEdit=${edit} onStopEdit=${() => setEditing(false)}
               onSend=${send} onEsc=${escalate} onChip=${applyChip} onMerge=${merge} />`

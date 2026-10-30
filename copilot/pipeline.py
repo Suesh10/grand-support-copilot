@@ -4,7 +4,7 @@ import re
 
 from . import classify as clf
 from . import guard, llm, model, rag, retrieve, templates
-from .draft import adapt_reply, handoff_draft, offline_draft, retrieval_draft, strip_foreign_details
+from .draft import INVENTED_FACT_RE, adapt_reply, handoff_draft, offline_draft, retrieval_draft, strip_foreign_details
 from .extract import extract
 from .normalize import detect_lang, normalize
 from .rules import filter_valid, short_ref
@@ -13,6 +13,8 @@ ALWAYS_TEMPLATE = {"report.account", "report.payment"}
 
 
 REPLY_LANGS = {"kk", "uz", "en", "es", "pt"}
+UNDER_REVIEW = "under_review"
+VERDICT_CONFIDENCE = 0.6
 CITATION_LINE = {"ru": "Основание: пункт {ref}.", "kk": "Негіз: {ref} тармағы.", "uz": "Asos: {ref} bandi.",
                  "en": "Reference: rule {ref}.", "es": "Referencia: regla {ref}.", "pt": "Referência: regra {ref}."}
 SIGNATURE_RE = re.compile(r"(с уважением|hurmat bilan|құрметпен)", re.I)
@@ -30,11 +32,17 @@ def with_citation(draft: dict, refs: list[str]) -> dict:
     return {**draft, "text": text, "cited": [*draft["cited"], *missing]}
 
 
-def likely_verdict(kind: str, category: str, text: str, rule_refs_raw: str) -> str | None:
+def likely_verdict(kind: str, category: str, text: str, rule_refs_raw: str, has_evidence: bool = False) -> str | None:
     if kind != "complaint":
         return None
     pred = model.predict("verdict", text, rule_refs_raw)
     verdict = pred[0] if pred else None
+    # Вложений сервис не видит: без уверенности не утверждаем исход, а говорим, что жалоба на проверке.
+    if has_evidence and category != "complaint.admin" and (not pred or pred[1] < VERDICT_CONFIDENCE):
+        return UNDER_REVIEW
+    # Дубль и «уже наказан» определяются по фактам, а не угадываются по тексту.
+    if verdict in ("duplicate", "already_punished"):
+        verdict = "need_evidence"
     if category == "complaint.admin" and verdict not in ("appeal_approved", "appeal_rejected"):
         return "appeal_rejected"
     if category == "complaint.invalid" and verdict not in ("invalid_format", "need_evidence"):
@@ -85,13 +93,14 @@ def triage_full(request: dict, verdict_override: str | None = None) -> tuple[dic
         if template:
             draft, meta["draft_source"] = {"lang": lang, "text": template, "cited": []}, "template"
 
-    verdict = verdict_override or likely_verdict(kind, category, text, rule_refs_raw)
+    verdict = verdict_override or likely_verdict(kind, category, text, rule_refs_raw, facts["has_evidence"])
+    known_verdict = None if verdict == UNDER_REVIEW else verdict
     refs = rag.candidates(category, verdict, text, facts["rule_refs"])
     allowed = set(refs)
     if draft is None and llm.enabled():
         examples = templates.style_examples(lang, kind, verdict) + [
             adapt_reply(c["reply"], c.get("reported_nick"), facts["nickname"])
-            for c in retrieve.similar(kind, text, k=3, verdict=verdict, lang=lang)]
+            for c in retrieve.similar(kind, text, k=3, verdict=known_verdict, lang=lang)]
         result = llm.draft(kind, lang if lang in llm.LANG_NAMES else "ru", category, verdict, text,
                            facts["nickname"], refs, examples, decided=bool(verdict_override))
         if result and "_error" not in result:
@@ -100,6 +109,10 @@ def triage_full(request: dict, verdict_override: str | None = None) -> tuple[dic
                 needs_human = True
             reasons += [r for r in result.pop("reasons") if r not in reasons]
             draft = result
+            # Фильтр выдуманных фактов действует и на LLM: он тоже копирует их из примеров.
+            if INVENTED_FACT_RE.search(draft["text"]) and verdict != "duplicate":
+                draft, meta["draft_source"] = handoff_draft(lang), "handoff"
+                needs_human = True
         elif result:
             meta["llm_error"] = result["_error"]
     # Офлайн на kk/uz: шаблон по вероятному исходу лучше, чем чужой русский ответ.
@@ -108,6 +121,9 @@ def triage_full(request: dict, verdict_override: str | None = None) -> tuple[dic
         template = templates.get(lang, situation) if situation else None
         if template:
             draft, meta["draft_source"] = {"lang": lang, "text": template, "cited": []}, "template"
+    # Апелляции не решаем: без LLM только нейтральная передача администрации.
+    if draft is None and (category == "complaint.admin" or verdict == UNDER_REVIEW):
+        draft, meta["draft_source"] = handoff_draft(lang), "handoff"
     if draft is None and category not in ALWAYS_TEMPLATE:
         draft = retrieval_draft(kind, text, lang, verdict, facts["nickname"], allowed)
         meta["draft_source"] = "retrieval" if draft else None

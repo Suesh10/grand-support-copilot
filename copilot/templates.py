@@ -3,7 +3,7 @@
 Казахские написал носитель языка из команды, узбекские подготовлены с LLM
 и сверены по стилю с реальными ответами админов. Используются:
   - как готовые ответы на типовые репорты (без LLM, бесплатно);
-  - как нейтральная передача старшему администратору;
+  - как нейтральная передача администрации;
   - как образцы стиля для LLM-черновиков на kk/uz.
 """
 
@@ -14,7 +14,7 @@ KK = {
     "invalid_format": "Сәлеметсіз бе! Өкінішке қарай, шағым белгіленген талаптарға сай рәсімделмеген. Өтінеміз, шағымды ережелерге сәйкес қайта жіберіңіз.",
     "duplicate": "Сәлеметсіз бе! Бұл шағым бұрын жіберілген өтініштің қайталамасы болып табылады. Қосымша ақпарат болса, сол өтініш аясында көрсетіңіз.",
     "help": "Сәлеметсіз бе! Өтінішіңіз қабылданды, администратор жақын арада көмектеседі. Өтінеміз, күте тұрыңыз.",
-    "senior": "Сәлеметсіз бе! Сұрағыңыз аға администраторға жіберілді. Жауапты жақын арада аласыз.",
+    "senior": "Сәлеметсіз бе! Сұрағыңыз әкімшілікке жіберілді. Жауапты жақын арада аласыз.",
     "offtopic": "Сәлеметсіз бе! Бұл өтініш тақырыпқа сай емес. Өтінеміз, нақты мәселеңізді жеке өтініш ретінде жіберіңіз.",
 }
 
@@ -27,7 +27,7 @@ UZ = {
     "invalid_format": _UZ_COMPLAINT + "Afsuski, shikoyat shikoyat topshirish qoidalariga muvofiq rasmiylashtirilmagan. Iltimos, shikoyatni qoidalarga mos ravishda qayta yuboring. Yopildi.",
     "duplicate": _UZ_COMPLAINT + "Bu masala bo'yicha shikoyatingiz avvalroq qayd etilgan. Takroriy murojaatlar ko'rib chiqilmaydi; javob birinchi shikoyat bo'yicha beriladi. Yopildi.",
     "help": _UZ_REPORT + "Administrator yaqin orada yordam beradi, iltimos, kuting.",
-    "senior": _UZ_REPORT + "Savolingiz katta administratorga yuborildi. Javob qisqa vaqt ichida beriladi.",
+    "senior": _UZ_REPORT + "Savolingiz administratsiyaga yuborildi. Javob qisqa vaqt ichida beriladi.",
     "offtopic": _UZ_REPORT + "Murojaatingiz o'yin qoidalariga taalluqli emas. Iltimos, aniq masalani tavsiflab, murojaatni qayta yuboring. Yopildi.",
 }
 
@@ -47,7 +47,7 @@ def get(lang: str, situation: str) -> str | None:
 
 
 def style_examples(lang: str, kind: str, verdict: str | None) -> list[str]:
-    """Образцы стиля для LLM на kk/uz: подходящий шаблон + передача старшему."""
+    """Образцы стиля для LLM на kk/uz: подходящий шаблон + передача администрации."""
     table = BY_LANG.get(lang)
     if not table:
         return []

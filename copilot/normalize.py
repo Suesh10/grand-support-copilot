@@ -20,7 +20,9 @@ KK_LETTERS = set("әғқңөұүһіӘҒҚҢӨҰҮҺІ")
 # Частые узбекские слова и буквосочетания в латинице.
 UZ_HINTS = re.compile(
     r"\b(men|menga|meni|uchun|qildi|bilan|nima|yoq|bor|iltimos|qoida|shikoyat|"
-    r"haqorat|sokdi|sokindi|qanday|nega|kerak|o['ʻ‘`]|g['ʻ‘`])", re.I)
+    r"haqorat|sokdi|sokindi|sukindi|onadan|berizla|mani|qanday|nega|kerak|o['ʻ‘`]|g['ʻ‘`])", re.I)
+RU_WORDS = re.compile(r"\b(что|чтоб|чтобы|как|это|меня|мне|вместо|прошу|когда|тут|уже|если|свою|его|он|она)\b", re.I)
+UK_WORDS = re.compile(r"\b(щоб|як|потрібно|дати|мене|будь ласка|чому)\b", re.I)
 KK_HINTS = re.compile(r"\b(мен|маған|сен|неге|жоқ|бар|көмек|өтінемін|қалай|ойын|ұрды)\b", re.I)
 EN_HINTS = re.compile(r"\b(the|is|please|help|my|he|she|account|cheat|hack|why)\b", re.I)
 PT_HINTS = re.compile(r"\b(não|nao|por favor|ajuda|minha|meu|você|voce|conta|está)\b", re.I)
@@ -54,7 +56,10 @@ def detect_lang(text: str) -> str:
         return "und"
     cyr = sum("а" <= c.lower() <= "я" or c.lower() == "ё" or c in KK_LETTERS for c in letters)
     if cyr / len(letters) > 0.5:
-        if any(c in KK_LETTERS for c in t) or KK_HINTS.search(t):
+        # Одна «қ» в русском тексте — опечатка на kz-сервере, украинский тоже идёт по-русски.
+        if RU_WORDS.search(t) or UK_WORDS.search(t):
+            return "ru"
+        if sum(c in KK_LETTERS for c in t) >= 2 or KK_HINTS.search(t):
             return "kk"
         return "ru"
     # Узбекская латиница: oʻ, gʻ с особым апострофом внутри слова.

@@ -16,13 +16,21 @@ PLAYER_WORD = {"hurmatli": "o‘yinchi", "құрметті": "ойыншы"}
 GREETING_NAME_RE = re.compile(r"(уважаем(?:ый|ая)|hurmatli|құрметті)\s*(,?)\s*(?:игрок)?\s*([,.!]|\n)", re.I)
 
 
+# Чужой ответ утверждает факты, которых по новому обращению мы не знаем.
+INVENTED_FACT_RE = re.compile(r"предоставил\w* доказательств|уже (был\w* )?наказан|наказание (было )?выдано верно|"
+                              r"уже получил|дубликат|ранее рассмотрен", re.I)
+COMPLAINT_RULES_RE = re.compile(r"подач\w+ жалоб|ппж", re.I)
+RAW_NUMBER_RE = re.compile(r"\b\d\.\d")
 SERVER_RE = re.compile(r"(администрация)\s+\d+\s+сервера", re.I)
 BRAND_SERVER_RE = re.compile(r"(grand\s?mobile)\s+\d{1,3}\b", re.I)
+SENIOR_RE = re.compile(r"старш(?:ей|ую|ая)\s+администраци|старшему\s+администратору", re.I)
 
 
 def strip_foreign_details(text: str) -> str:
     """Подпись конкретного сервера из чужого ответа: номера сервера нашего обращения мы не знаем."""
-    return BRAND_SERVER_RE.sub(r"\1", SERVER_RE.sub(r"\1", text))
+    text = BRAND_SERVER_RE.sub(r"\1", SERVER_RE.sub(r"\1", text))
+    # Структуру админов мы не знаем: не обещаем передачу конкретной должности.
+    return SENIOR_RE.sub(lambda m: "администраци" if "администраци" in m.group(0) else "администрации", text)
 
 
 def adapt_reply(reply: str, source_reported: str | None, target_reported: str | None) -> str:
@@ -39,7 +47,9 @@ def adapt_reply(reply: str, source_reported: str | None, target_reported: str | 
     text = GREETING_NAME_RE.sub(
         lambda m: f"{m.group(1)} {PLAYER_WORD.get(m.group(1).lower(), 'игрок')}{m.group(2)}{m.group(3)}", text)
     text = re.sub(r",([,.!])", r"\1", text)
+    text = text.replace("Уважаемый(ая)", "Уважаемый игрок")
     text = re.sub(r"[ \t]+([,.!?])", r"\1", text)
+    text = re.sub(r",\.", ".", text)
     text = re.sub(r"[ \t]{2,}", " ", text)
     return strip_foreign_details(text).strip()
 
@@ -47,10 +57,13 @@ def adapt_reply(reply: str, source_reported: str | None, target_reported: str | 
 def retrieval_draft(kind: str, text: str, lang: str, verdict: str | None,
                     reported_nick: str | None, allowed_refs: set[str]) -> dict | None:
     """Ответ на самый похожий случай, где все упомянутые пункты относятся к нашему."""
-    for case in retrieve.similar(kind, text, k=8, verdict=verdict, lang=lang):
+    for case in retrieve.similar(kind, text, k=12, verdict=verdict, lang=lang):
         reply = adapt_reply(case["reply"], case.get("reported_nick"), reported_nick)
-        mentioned = parse_refs(reply)
-        if any(r not in allowed_refs for r in mentioned) or len(reply) < 8:
+        if INVENTED_FACT_RE.search(reply) or len(reply) < 8:
+            continue
+        section = "ЖБ" if COMPLAINT_RULES_RE.search(reply) else "ОП"
+        mentioned = parse_refs(reply, default_section=section)
+        if any(r not in allowed_refs for r in mentioned) or (RAW_NUMBER_RE.search(reply) and not mentioned):
             continue
         # Язык берём по самому ответу: на казахские и английские обращения админы часто отвечали по-русски.
         reply_lang = detect_lang(reply)
@@ -67,18 +80,18 @@ TEMPLATES = {
         "help": "Здравствуйте! Администратор уже видит ваше обращение и скоро поможет. Пожалуйста, ожидайте.",
         "question": "Здравствуйте! Ваш вопрос передан администратору, ответ придёт в ближайшее время.",
         "offtopic": "Здравствуйте! Опишите, пожалуйста, вашу проблему подробнее, чтобы администратор мог помочь.",
-        "human": "Здравствуйте! Ваше обращение передано старшему администратору. Пожалуйста, ожидайте ответа.",
+        "human": "Здравствуйте! Ваше обращение передано администрации. Пожалуйста, ожидайте ответа.",
     },
 }
 
 
 HANDOFF = {
-    "ru": "Здравствуйте! Ваше обращение передано старшему администратору. Пожалуйста, ожидайте ответа.",
+    "ru": "Здравствуйте! Ваше обращение передано администрации. Пожалуйста, ожидайте ответа.",
     "kk": templates.KK["senior"],
     "uz": templates.UZ["senior"],
-    "en": "Hello! Your request has been forwarded to a senior administrator. Please wait for a reply.",
-    "es": "¡Hola! Su solicitud ha sido enviada a un administrador superior. Por favor, espere la respuesta.",
-    "pt": "Olá! Sua solicitação foi encaminhada a um administrador sênior. Por favor, aguarde a resposta.",
+    "en": "Hello! Your request has been forwarded to the administration. Please wait for a reply.",
+    "es": "¡Hola! Su solicitud ha sido enviada a la administración. Por favor, espere la respuesta.",
+    "pt": "Olá! Sua solicitação foi encaminhada à administração. Por favor, aguarde a resposta.",
 }
 
 

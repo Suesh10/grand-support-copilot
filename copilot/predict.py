@@ -10,6 +10,7 @@ import json
 import sys
 import time
 
+from . import llm
 from .dedupe import Deduper
 from .pipeline import triage
 
@@ -38,6 +39,7 @@ def main() -> None:
     args = ap.parse_args()
     sys.stderr.reconfigure(encoding="utf-8")
 
+    llm.batch_mode()
     n, started = 0, time.perf_counter()
     dedupe = Deduper()
     with open_any(args.inp) as fin, open(args.out, "w", encoding="utf-8") as fout:
