@@ -15,6 +15,14 @@ PLAYER_WORD = {"hurmatli": "o‘yinchi", "құрметті": "ойыншы"}
 GREETING_NAME_RE = re.compile(r"(уважаем(?:ый|ая)|hurmatli|құрметті)\s*(,?)\s*(?:игрок)?\s*([,.!]|\n)", re.I)
 
 
+SERVER_RE = re.compile(r"(администрация)\s+\d+\s+сервера", re.I)
+
+
+def strip_foreign_details(text: str) -> str:
+    """Подпись конкретного сервера из чужого ответа: номера сервера нашего обращения мы не знаем."""
+    return SERVER_RE.sub(r"\1", text)
+
+
 def adapt_reply(reply: str, source_reported: str | None, target_reported: str | None) -> str:
     """Перенести ответ на новый случай: ник обвиняемого — на нового, остальные ники убрать."""
     def swap(m: re.Match) -> str:
@@ -31,7 +39,7 @@ def adapt_reply(reply: str, source_reported: str | None, target_reported: str | 
     text = re.sub(r",([,.!])", r"\1", text)
     text = re.sub(r"[ \t]+([,.!?])", r"\1", text)
     text = re.sub(r"[ \t]{2,}", " ", text)
-    return text.strip()
+    return strip_foreign_details(text).strip()
 
 
 def retrieval_draft(kind: str, text: str, lang: str, verdict: str | None,

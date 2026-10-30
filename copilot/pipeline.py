@@ -2,7 +2,7 @@
 
 from . import classify as clf
 from . import guard, llm, model, retrieve, templates
-from .draft import adapt_reply, handoff_draft, offline_draft, retrieval_draft
+from .draft import adapt_reply, handoff_draft, offline_draft, retrieval_draft, strip_foreign_details
 from .extract import extract
 from .labels import REF_CATEGORY
 from .normalize import detect_lang, normalize
@@ -103,6 +103,7 @@ def triage_full(request: dict, verdict_override: str | None = None) -> tuple[dic
     if draft is None:
         draft = offline_draft(lang, category, facts["rule_refs"], facts["has_evidence"], needs_human)
         meta["draft_source"] = "template"
+    draft["text"] = strip_foreign_details(draft["text"])
     # Последний барьер: в ответ попадают только существующие пункты правил.
     draft["cited"] = filter_valid(draft["cited"])
     # Черновик без решения о наказании (просьба о доказательствах и т.п.) не требует админа.

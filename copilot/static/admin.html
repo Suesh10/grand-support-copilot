@@ -415,8 +415,7 @@ function setChip(t, chip) {
   const swap = (text, oldV, newV) => {
     if (text.includes(oldV)) return text.replace(oldV, newV);
     // Наказание ставим перед подписью, а не после неё.
-    const sign = text.search(/
-+\s*(С уважением|Hurmat bilan|Құрметпен)/i);
+    const sign = text.search(/\n+\s*(С уважением|Hurmat bilan|Құрметпен)/i);
     return sign > 0 ? `${text.slice(0, sign)} ${newV}${text.slice(sign)}` : `${text} ${newV}`;
   };
   const draft = swap(t.draft, prev ? prev.ins : slot, next ? next.ins : slot);
