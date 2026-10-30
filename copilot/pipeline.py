@@ -17,6 +17,7 @@ UNDER_REVIEW = "under_review"
 VERDICT_CONFIDENCE = 0.6
 CITATION_LINE = {"ru": "Основание: пункт {ref}.", "kk": "Негіз: {ref} тармағы.", "uz": "Asos: {ref} bandi.",
                  "en": "Reference: rule {ref}.", "es": "Referencia: regla {ref}.", "pt": "Referência: regra {ref}."}
+CLOSED_RE = re.compile(r"\s*(жалоба\s+)?закрыт[оа]\b[.!]?|\s*yopildi\b[.!]?", re.I)
 SIGNATURE_RE = re.compile(r"(с уважением|hurmat bilan|құрметпен)", re.I)
 
 
@@ -158,6 +159,9 @@ def triage_full(request: dict, verdict_override: str | None = None) -> tuple[dic
         reason = "черновик содержит решение, которое подтверждает только администратор"
         if reason not in reasons:
             reasons.append(reason)
+    # Пока решает человек, обращение не закрыто.
+    if needs_human:
+        draft = {**draft, "text": CLOSED_RE.sub("", draft["text"]).strip()}
     if category in rag.NEEDS_CITATION:
         draft = with_citation(draft, rag.required(category, verdict, refs, draft["cited"]))
 

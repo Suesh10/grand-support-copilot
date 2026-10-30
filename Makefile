@@ -15,7 +15,7 @@ OUT ?= artifacts/pred.jsonl
 PORT ?= 8000
 MODEL := artifacts/classifier.joblib
 
-.PHONY: install train models serve predict eval examples test
+.PHONY: install train models serve predict eval examples audit test
 
 install:
 	python -m venv .venv
@@ -49,6 +49,9 @@ eval:
 
 examples:
 	$(PY) scripts/examples.py
+
+audit:
+	$(PY) scripts/audit.py
 
 test:
 	$(PY) -m pytest -q

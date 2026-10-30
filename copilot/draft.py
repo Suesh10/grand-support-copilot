@@ -19,6 +19,7 @@ GREETING_NAME_RE = re.compile(r"(уважаем(?:ый|ая)|hurmatli|құрме
 # Чужой ответ утверждает факты, которых по новому обращению мы не знаем.
 INVENTED_FACT_RE = re.compile(r"предоставил\w* доказательств|уже (был\w* )?наказан|наказание (вам )?(было )?выдано верно|"
                               r"уже получил|дубликат|ранее рассмотрен", re.I)
+PUNISH_TERM_RE = re.compile(r"\b\d+\s*(минут|мин\b|час|дн|день|дня|дней|kun|daqiqa|күн)", re.I)
 COMPLAINT_RULES_RE = re.compile(r"подач\w+ жалоб|ппж", re.I)
 RAW_NUMBER_RE = re.compile(r"\b\d\.\d")
 SERVER_RE = re.compile(r"(администрация)\s+\d+\s+сервера", re.I)
@@ -59,7 +60,8 @@ def retrieval_draft(kind: str, text: str, lang: str, verdict: str | None,
     """Ответ на самый похожий случай, где все упомянутые пункты относятся к нашему."""
     for case in retrieve.similar(kind, text, k=12, verdict=verdict, lang=lang):
         reply = adapt_reply(case["reply"], case.get("reported_nick"), reported_nick)
-        if INVENTED_FACT_RE.search(reply) or len(reply) < 8:
+        # Срок наказания решает админ, длинные шаблоны админы тоже не любят.
+        if INVENTED_FACT_RE.search(reply) or PUNISH_TERM_RE.search(reply) or not 8 <= len(reply) <= 450:
             continue
         section = "ЖБ" if COMPLAINT_RULES_RE.search(reply) else "ОП"
         mentioned = parse_refs(reply, default_section=section)

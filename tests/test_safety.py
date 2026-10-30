@@ -99,6 +99,12 @@ def test_invented_fact_filter():
     assert not INVENTED_FACT_RE.search("Ваша жалоба принята и будет рассмотрена.")
 
 
+def test_human_ticket_is_not_closed():
+    from copilot.pipeline import CLOSED_RE
+    assert "Закрыто" not in CLOSED_RE.sub("", "Жалоба принята. Закрыто.")
+    assert "Yopildi" not in CLOSED_RE.sub("", "Murojaat qabul qilindi. Yopildi.")
+
+
 def test_senior_admin_never_promised():
     from copilot.draft import strip_foreign_details
     assert "старш" not in strip_foreign_details("Ваше обращение передано старшей администрации.")
