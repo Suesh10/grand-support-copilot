@@ -384,6 +384,23 @@ def test_demo_queue_shows_every_function():
     assert {i["triage"]["lang"] for i in items.values()} >= {"ru", "kk", "uz", "en", "es", "pt"}
 
 
+def test_toxic_words_are_marked_but_ordinary_words_are_not():
+    from copilot.extract import spans
+    from copilot.signals import TOXIC_RE
+    text = "ты дебил и сука"
+    assert [text[x["start"]:x["end"]] for x in spans(text) if x["kind"] == "toxic"] == ["дебил", "сука"]
+    assert not TOXIC_RE.search("тихую требовать хуже сукно потребовал оскорбление страховка")
+
+
+def test_reporter_accuracy_only_orders_the_queue():
+    from copilot import reputation
+    assert reputation.reporter_accuracy("demo-reporter-1") > reputation.reporter_accuracy(None) > reputation.reporter_accuracy("demo-reporter-2")
+    items = client.get("/api/queue").json()["items"]
+    p2 = [i["id"] for i in items if i["triage"]["priority"] == "p2" and i["triage"]["needs_human"]]
+    assert p2.index("demo-01") < p2.index("demo-11")
+    assert next(i for i in items if i["id"] == "demo-11")["triage"]["needs_human"] is True
+
+
 def test_old_outage_is_not_shown_as_current(monkeypatch):
     import time
     monkeypatch.setattr(llm, "enabled", lambda: True)

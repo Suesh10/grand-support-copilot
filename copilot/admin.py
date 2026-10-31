@@ -111,7 +111,9 @@ def _load_queue() -> tuple:
             "reported_hash": t.get("reported_hash"),
             "auto": not pred["needs_human"],
         })
-    items.sort(key=lambda x: (PRIORITY_ORDER.get(x["triage"]["priority"], 9), not x["triage"]["needs_human"]))
+    # Внутри приоритета раньше идут заявители, чьи жалобы чаще подтверждаются. Приоритет и решение это не меняет.
+    items.sort(key=lambda x: (PRIORITY_ORDER.get(x["triage"]["priority"], 9), not x["triage"]["needs_human"],
+                              -reputation.reporter_accuracy(x["reporter_hash"])))
     return tuple(items)
 
 

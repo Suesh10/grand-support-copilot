@@ -97,6 +97,11 @@
   .fact-rule { background: rgb(224 180 20 / .2); cursor: pointer; text-decoration: underline; }
   .fact-proof { background: rgb(95 207 154 / .16); }
   .fact-server { background: rgb(125 183 240 / .18); }
+  .fact-toxic { background: var(--raised); cursor: pointer; min-height: 24px; }
+  .fact-toxic span { filter: blur(6px); user-select: none; }
+  .fact-toxic.open span { filter: none; user-select: text; }
+  .swipe-hint { display: none; }
+  @media (hover: none) { .swipe-hint { display: block; } }
   .reason { display: flex; gap: 8px; font-size: 15px; line-height: 1.4; color: var(--muted); }
   .reason b { color: var(--warn); font-weight: 700; }
   .forecast { display: inline-flex; flex-wrap: wrap; align-items: center; gap: 4px 8px; margin-bottom: 8px; padding: 4px 10px; border: 1px solid var(--accent); border-radius: 6px; font-size: 14px; }
@@ -479,13 +484,19 @@ function Trace({ t, onType }) {
 
 /* Факты подсвечены прямо в тексте игрока: админ видит их сразу и может открыть пункт правил. */
 const FACT_TITLES = { nick: "Ник", rule: "Пункт правил: нажмите, чтобы открыть", proof: "Упоминание доказательств", server: "Сервер" };
+/* Токсик-щит: грубое слово скрыто до нажатия. Админу оно нужно для решения, поэтому показать можно всегда. */
+function Toxic({ text }) {
+  const [open, setOpen] = useState(false);
+  return html`<button type="button" class=${"fact fact-toxic" + (open ? " open" : "")} aria-pressed=${open} aria-label=${open ? text : "Скрытое грубое слово: нажмите, чтобы показать"} title="Грубое слово: нажмите, чтобы показать или скрыть" onClick=${() => setOpen(!open)}><span aria-hidden=${!open}>${text}</span></button>`;
+}
+
 function Marked({ text, spans, onRule }) {
   const parts = [];
   let at = 0;
   (spans || []).forEach((m, i) => {
     if (m.start > at) parts.push(text.slice(at, m.start));
     const piece = text.slice(m.start, m.end);
-    parts.push(m.kind === "rule"
+    parts.push(m.kind === "toxic" ? html`<${Toxic} key=${i} text=${piece} />` : m.kind === "rule"
       ? html`<button key=${i} type="button" class="fact fact-rule" title=${FACT_TITLES.rule} onClick=${onRule}>${piece}</button>`
       : html`<mark key=${i} class=${"fact fact-" + m.kind} title=${FACT_TITLES[m.kind]}>${piece}</mark>`);
     at = m.end;
@@ -800,14 +811,28 @@ function NotesView({ notes, onAdd, onDelete, onBack }) {
   </div>`;
 }
 
+const SWIPE_MIN = 90;  /* пикселей по горизонтали: короче это обычное движение пальца */
+const SWIPE_DRIFT = 50;  /* больше по вертикали значит, что админ листает страницу */
+const TOXIC_PAUSE = 5;
+
 function Ticket({ t, editing, generating, onGenerate, onType, seriesCount, nudge, ruleOpen, onToggleRule, onDraft, onEdit, onStopEdit, onSend, onEsc, onChip, onMerge, onOpenRule, areaRef }) {
+  const touch = useRef(null);
+  const onTouchStart = (e) => { touch.current = !editing && e.touches.length === 1 && !e.target.closest("textarea, select, input") ? e.touches[0] : null; };
+  const onTouchEnd = (e) => {
+    const from = touch.current;
+    touch.current = null;
+    if (!from) return;
+    const dx = e.changedTouches[0].clientX - from.clientX, dy = e.changedTouches[0].clientY - from.clientY;
+    if (Math.abs(dx) < SWIPE_MIN || Math.abs(dy) > SWIPE_DRIFT) return;
+    (dx > 0 ? onSend : onEsc)();
+  };
   const needsPunish = t.draft.includes(SLOT[t.lang]);
   const shown = t.appealOf ? t.msgs : t.msgs.filter((m) => m.role !== "reported_player");  /* ответ обвиняемого живёт в апелляциях */
   useLayoutEffect(() => {
     const el = areaRef.current;
     if (el) { el.style.height = "auto"; el.style.height = el.scrollHeight + "px"; }
   }, [t.draft, t.id]);
-  return html`<div class="enter gutter ticket max-w-[880px] mx-auto py-3 grid gap-3 min-w-0" key=${t.id}>
+  return html`<div class="enter gutter ticket max-w-[880px] mx-auto py-3 grid gap-3 min-w-0" key=${t.id} onTouchStart=${onTouchStart} onTouchEnd=${onTouchEnd}>
     <div class="flex flex-wrap items-center gap-x-3 gap-y-1">
       <${Badge} p=${t.p} />
       <h2 class="font-display text-[26px] font-bold leading-tight break-words">${t.appealOf ? `Апелляция по жалобе ${t.appealOf}` : `${t.kind === "complaint" ? "Жалоба" : "Репорт"}: ${(TYPE_NAMES[t.cat] || "обращение").toLowerCase()}`}</h2>
@@ -824,7 +849,7 @@ function Ticket({ t, editing, generating, onGenerate, onType, seriesCount, nudge
     <div class="grid gap-2">
     <h3 class="side-title">${t.appealOf ? "Игрок" : "Заявитель"}</h3>
     <${Box} nick=${t.appealOf ? t.facts.nick : t.reporterNick} letter=${t.appealOf ? "И" : "З"} own p=${t.appealOf ? t.profiles.reported : t.profiles.reporter}>
-      ${shown.map((m, i) => html`<p key=${i} class="claim-text" style=${{ fontSize: textSize(m.text) }}><${Marked} text=${m.text} spans=${m.spans} onRule=${onOpenRule} /></p>`)}
+      ${shown.map((m, i) => html`<p key=${t.id + i} class="claim-text" style=${{ fontSize: textSize(m.text) }}><${Marked} text=${m.text} spans=${m.spans} onRule=${onOpenRule} /></p>`)}
       ${(t.textRu || NEEDS_RU.includes(t.lang)) && html`<${Translation} text=${t.textRu || NO_RU} />`}
       ${t.facts.proof !== "Нет" && !t.images && !t.attachments.length && html`<p class="mt-3 flex items-center gap-2 text-[15px] text-mute"><${Paperclip} size=${16} /> ${t.facts.proof}</p>`}
       <${Proofs} files=${t.attachments} images=${t.images} />
@@ -845,6 +870,7 @@ function Ticket({ t, editing, generating, onGenerate, onType, seriesCount, nudge
     <${History} h=${t.history} />
     <${Generate} t=${t} generating=${generating} onGenerate=${onGenerate} />
     <${Rule} t=${t} onChip=${onChip} nudge=${nudge} ruleOpen=${ruleOpen} onToggle=${onToggleRule} />
+    <p class="swipe-hint text-sm text-mute">Свайп вправо: отправить. Влево: эскалировать. Отменить можно 5 секунд.</p>
     <div class="sticky bottom-0 py-2 flex flex-wrap gap-3 z-10 bg-sky">
       <button type="button" class="btn btn-main flex-1 min-w-[200px]" onClick=${onSend}><${Send} size=${20} /> ${t.armed ? "Доказательства проверены, отправить" : "Отправить"} <span class="key">Enter</span></button>
       <button type="button" class="btn" onClick=${onEdit}><${Pencil} size=${20} /> Править <span class="key">E</span></button>
@@ -926,7 +952,8 @@ function App() {
     // Следующим идёт обращение того же типа: так разбирают одинаковые подряд.
     const same = rest.find((x) => x.cat === t.cat);
     setActiveId(same ? same.id : rest.length ? rest[Math.min(i, rest.length - 1)].id : null);
-    return { ...s, tickets: rest, ...patch };
+    const rude = t.msgs.some((m) => (m.spans || []).some((x) => x.kind === "toxic"));
+    return { ...s, tickets: rest, toxicRun: rude ? (s.toxicRun || 0) + 1 : 0, ...patch };
   };
 
   /* Новый урок меняет похожие обращения в очереди сразу, кроме тех, что админ уже правит сам. */
@@ -1089,7 +1116,7 @@ function App() {
       <${Rail} s=${s} activeId=${activeId} openGroup=${ALL_VIEWS.includes(groupOpen) ? groupOpen : group ? group.cat : null} onGroup=${setGroupOpen} onMenu=${() => setDrawer(!drawer)} />
       <main class="main min-w-0">
         ${groupOpen === TRY_VIEW ? html`<${TryView} onBack=${() => setGroupOpen(null)} />` : groupOpen === ARCHIVE_VIEW ? html`<${ArchiveView} onBack=${() => setGroupOpen(null)} />` : groupOpen === SHIFT_VIEW ? html`<${ShiftView} onBack=${() => setGroupOpen(null)} />` : groupOpen === TEMPLATES_VIEW ? html`<${TemplatesView} onBack=${() => setGroupOpen(null)} onLearned=${applyLearned} />` : groupOpen === REVIEW_VIEW ? html`<${ReviewView} onBack=${() => setGroupOpen(null)} />` : groupOpen === NOTES_VIEW ? html`<${NotesView} notes=${notes} onAdd=${addNote} onDelete=${deleteNote} onBack=${() => setGroupOpen(null)} />` : group ? html`<${GroupView} g=${group} onPick=${pick} onBack=${() => setGroupOpen(null)} />` : active
-          ? html`<${Ticket} t=${active} editing=${editing} generating=${generating} onGenerate=${generate} onType=${(cat) => patchActive((t) => ({ ...t, cat }))} seriesCount=${seriesCount} nudge=${nudge} areaRef=${areaRef} ruleOpen=${ruleOpen} onToggleRule=${() => setRuleOpen(!ruleOpen)}
+          ? html`${s.toxicRun >= TOXIC_PAUSE && html`<p role="status" class="gutter max-w-[880px] mx-auto pt-3 flex flex-wrap items-center gap-3 font-semibold">Вы разобрали ${s.toxicRun} токсичных обращений подряд. Сделайте паузу на пару минут.<button type="button" class="chip" onClick=${() => setS((x) => ({ ...x, toxicRun: 0 }))}>Понятно</button></p>`}<${Ticket} t=${active} editing=${editing} generating=${generating} onGenerate=${generate} onType=${(cat) => patchActive((t) => ({ ...t, cat }))} seriesCount=${seriesCount} nudge=${nudge} areaRef=${areaRef} ruleOpen=${ruleOpen} onToggleRule=${() => setRuleOpen(!ruleOpen)}
               onDraft=${(v) => patchActive((t) => ({ ...t, draft: v, edited: true }))} onEdit=${edit} onStopEdit=${() => setEditing(false)}
               onSend=${send} onEsc=${escalate} onChip=${applyChip} onMerge=${merge}
               onOpenRule=${() => { setRuleOpen(true); document.getElementById("rule")?.scrollIntoView({ behavior: "smooth", block: "center" }); }} />`

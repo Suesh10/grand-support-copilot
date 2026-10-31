@@ -7,6 +7,7 @@
 import re
 
 from .rules import REF_RE, parse_refs
+from .signals import TOXIC_RE
 
 # Ники в игре: Имя_Фамилия, иногда с цифрами.
 NICK_RE = re.compile(r"\b([A-Z][a-z]+_[A-Z][a-z]+\d{0,3})\b")
@@ -38,6 +39,7 @@ def spans(text: str) -> list[dict]:
         found.append({"start": m.start(), "end": end, "kind": "proof"})
     # Подсвечиваем только настоящие пункты: «99.1» из текста игрока фактом не считается.
     found += [{"start": m.start(), "end": m.end(), "kind": "rule"} for m in REF_RE.finditer(text) if parse_refs(m.group(0))]
+    found += [{"start": m.start(), "end": m.end(), "kind": "toxic"} for m in TOXIC_RE.finditer(text)]
     found.sort(key=lambda x: x["start"])
     out: list[dict] = []
     for item in found:

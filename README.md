@@ -75,7 +75,7 @@ make serve DATA=/путь/к/handout
 ```
 
 - `POST http://localhost:8000/triage` — контракт из ТЗ
-- `http://localhost:8000/admin` — очередь админа: 30 придуманных примеров из `examples/sample_tickets.jsonl`, у каждого написано, какую функцию он показывает
+- `http://localhost:8000/admin` — очередь админа: 31 придуманный пример из `examples/sample_tickets.jsonl`, у каждого написано, какую функцию он показывает
 - `http://localhost:8000/docs` — интерактивная документация API
 - `http://localhost:8000/health` — состояние моделей и LLM
 

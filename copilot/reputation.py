@@ -172,6 +172,10 @@ def lookup(nick: str, category: str) -> dict:
     return {"found": True, "profile": p, "summary": " ".join(parts) or "Выводов из истории пока нет."}
 
 
+ACCURACY_PRIOR = 0.47  # столько подтвердилось у заявителей без истории
+ACCURACY_WEIGHT = 5
+
+
 def comment(p: dict) -> str:
     """Вывод из профиля: только то, чего не видно из чисел рядом."""
     parts = []
@@ -208,6 +212,16 @@ def _history(player_hash: str | None) -> dict:
             "criteria": [{"name": CRITERIA_NAMES[k], "count": filed[k]} for k in data["template"] if filed.get(k)],
             "against": against.get("total", 0), "against_confirmed": against.get("approved", 0),
             "reports_against": data["reports_against"].get(player_hash, 0), "topics": dict(data["topics"].get(player_hash, {}))}
+
+
+def reporter_accuracy(player_hash: str | None) -> float:
+    """Доля подтверждённых жалоб со сглаживанием: одна жалоба новичка почти ничего не меняет.
+
+    Только для порядка внутри очереди. Отклонять по ней нельзя: на валидации жалобы заявителей
+    с точностью ниже 30% всё равно подтвердились в 47% случаев.
+    """
+    base = _history(player_hash)
+    return (base["filed_confirmed"] + ACCURACY_WEIGHT * ACCURACY_PRIOR) / (base["filed"] + ACCURACY_WEIGHT)
 
 
 def _card(base: dict, note: dict) -> dict:
