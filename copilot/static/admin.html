@@ -184,6 +184,12 @@ let TICKETS = [], AUTO = [], AUTO_TOTAL = 0, NOTES = [], LLM = { state: "off" },
 const RULES = {};
 const SLOT = { ru: "[наказание]", kk: "[жаза]", uz: "[jazo]" };
 const PUNISH_WORD = { ru: "Наказание", kk: "Жаза", uz: "Jazo" };
+/* Апелляция решается иначе, чем жалоба на игрока. Снятие наказания сервис не пишет: его формулирует сам админ. */
+const APPEAL_VERDICTS = [
+  { id: "appeal_rejected", label: "Наказание верно" },
+  { id: "need_evidence", label: "Нужны доказательства" },
+  { id: "invalid_format", label: "Оформлена неверно" },
+];
 const VERDICTS = [
   { id: "approved", label: "Одобрить" },
   { id: "need_evidence", label: "Нужны доказательства" },
@@ -576,7 +582,7 @@ function Generate({ t, generating, onGenerate }) {
   return html`<section class="card" aria-label="Сгенерировать ответ">
     <h3 class="label mb-3 flex items-center gap-2"><${Sparkles} size=${16} /> Сгенерировать ответ по обращению</h3>
     <div class="flex flex-wrap gap-2">
-      ${VERDICTS.map((v) => html`<button key=${v.id} type="button" class="chip" aria-pressed=${t.verdict === v.id} disabled=${!!generating} onClick=${() => onGenerate(v.id)}>${generating === v.id ? "Пишу…" : v.label}</button>`)}
+      ${(t.cat === "complaint.admin" ? APPEAL_VERDICTS : VERDICTS).map((v) => html`<button key=${v.id} type="button" class="chip" aria-pressed=${t.verdict === v.id} disabled=${!!generating} onClick=${() => onGenerate(v.id)}>${generating === v.id ? "Пишу…" : v.label}</button>`)}
     </div>
     ${t.genNote && html`<p class="mt-3 text-sm text-mute">${t.genNote}</p>`}
   </section>`;

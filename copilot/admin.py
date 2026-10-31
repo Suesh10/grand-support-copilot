@@ -40,7 +40,7 @@ RETENTION_DAYS = 30  # через сколько дней сайт предла�
 PRIORITY_ORDER = {"p0": 0, "p1": 1, "p2": 2, "p3": 3}
 _queue_lock = threading.Lock()  # страница и фоновый прогрев не должны считать очередь дважды
 _files_lock = threading.Lock()  # два быстрых действия админа не должны затирать друг друга
-GENERATE_VERDICTS = {"approved", "need_evidence", "rejected", "invalid_format", "duplicate"}
+GENERATE_VERDICTS = {"approved", "need_evidence", "rejected", "invalid_format", "duplicate", "appeal_rejected"}
 
 
 def rule_card(ref: str) -> dict | None:

@@ -54,9 +54,9 @@ PROPOSALS = {
     "uz": {
         "approved": _UZ_COMPLAINT + "Shikoyatingiz ko'rib chiqildi va tasdiqlandi: {who}{by} jazolanadi.",
         "need_evidence": UZ["need_evidence"],
-        "review": _UZ_COMPLAINT + "Shikoyatingiz qabul qilindi. Administratsiya materiallarni{by} tekshirib, qaror haqida xabar beradi.",
+        "review": "Hurmatli o'yinchi, shikoyatingiz uchun rahmat. Administratsiya materiallarni{by} tekshirib, qaror haqida xabar beradi.",
         "appeal_rejected": _UZ_REPORT + "Murojaatingiz ko'rib chiqildi: jazo to'g'ri berilgan.",
-        "appeal_review": _UZ_REPORT + "Murojaatingiz qabul qilindi. Administratsiya vaziyatni{by} tekshirib, qaror haqida xabar beradi.",
+        "appeal_review": "Hurmatli o'yinchi, murojaatingiz uchun rahmat. Administratsiya vaziyatni{by} tekshirib, qaror haqida xabar beradi.",
     },
     "en": {
         "review": "Hello! Your complaint has been received. The administration will check the attached materials{by} and let you know the decision.",

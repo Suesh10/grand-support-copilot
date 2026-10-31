@@ -367,3 +367,10 @@ def test_only_one_llm_client_under_parallel_load(monkeypatch):
     for t in threads:
         t.join()
     assert len(made) == 1
+
+
+def test_admin_can_answer_an_appeal_in_one_click():
+    client.get("/api/queue")
+    r = client.post("/api/generate/demo-05-appeal", json={"verdict": "appeal_rejected"})
+    assert r.status_code == 200 and "выдано верно" in r.json()["draft_reply"]["text"]
+    assert client.post("/api/generate/demo-05-appeal", json={"verdict": "appeal_approved"}).status_code == 422  # снятие пишет сам админ
