@@ -216,7 +216,7 @@ class TranslateRequest(BaseModel):
 
 @router.post("/api/translate")
 def api_translate(req: TranslateRequest) -> dict:
-    """Русский перевод для kk/uz: админы в основном русскоязычные."""
+    """Русский перевод для всех языков, кроме русского: админы в основном русскоязычные."""
     return {"text": llm.translate(req.text)}
 
 

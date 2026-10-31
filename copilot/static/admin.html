@@ -515,7 +515,7 @@ function Drawer({ s, activeId, autoOpen, onAuto, onCheck, onPick, onClose }) {
   </aside>`;
 }
 
-const NEEDS_RU = ["kk", "uz"];
+const NEEDS_RU = ["kk", "uz", "en", "es", "pt"];
 const NO_RU = "Перевода пока нет: ИИ не ответил. Откройте обращение ещё раз позже.";
 
 function Translation({ text, stale }) {
@@ -1097,7 +1097,7 @@ function App() {
       const offline = r.source !== "llm";
       patchTicket(id, (t) => ({ ...t, draft: r.draft_reply.text, draftRu: null, edited: false, chip: null, chipData: null, verdict, proposal: null,
         human: r.reasons, genNote: offline ? "ИИ недоступен: черновик собран из похожего случая." : "Черновик от ИИ, цитаты проверены. Можно править." }));
-      if (lang === "kk" || lang === "uz") {
+      if (NEEDS_RU.includes(lang)) {
         const ru = await translate(r.draft_reply.text);
         if (ru) patchTicket(id, (t) => ({ ...t, draftRu: ru }));
       }
@@ -1110,7 +1110,7 @@ function App() {
 
   /* Перевод для русскоязычных админов подгружается при открытии казахского или узбекского тикета. */
   useEffect(() => {
-    if (!active || (active.lang !== "kk" && active.lang !== "uz") || active.textRu) return;
+    if (!active || !NEEDS_RU.includes(active.lang) || active.textRu) return;
     const { id, text, draft } = active;
     translate(text).then((ru) => { if (ru) patchTicket(id, (t) => ({ ...t, textRu: ru })); });
     translate(draft).then((ru) => { if (ru) patchTicket(id, (t) => (t.draftRu ? t : { ...t, draftRu: ru })); });
