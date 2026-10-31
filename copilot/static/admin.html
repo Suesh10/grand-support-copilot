@@ -103,6 +103,10 @@
   .forecast b { color: var(--accent); }
   .hist { display: flex; height: 10px; margin: 6px 0; border-radius: 999px; overflow: hidden; background: var(--raised); }
   .hist i { display: block; height: 100%; }
+  .tile { padding: 12px 14px; border: 1px solid var(--line); border-radius: 4px; background: var(--paper); }
+  .barrow { display: grid; grid-template-columns: minmax(0, 1fr) minmax(60px, 1fr) 24px; align-items: center; gap: 10px; font-size: 14px; }
+  .barline { height: 10px; border-radius: 999px; background: var(--raised); overflow: hidden; }
+  .barline i { display: block; height: 100%; border-radius: 999px; }
   .status { display: inline-flex; align-items: center; gap: 6px; font-size: 13px; color: var(--muted); white-space: nowrap; }
   .status i { width: 8px; height: 8px; border-radius: 999px; }
   .msg-nick { max-width: 100%; color: var(--text); font-size: 12px; font-weight: 700; overflow-wrap: anywhere; text-align: center; }
@@ -165,7 +169,7 @@
 <script>
 const { useState, useEffect, useLayoutEffect, useRef, useMemo } = React;
 const html = htm.bind(React.createElement);
-const { Send, Pencil, ArrowUpRight, Check, ShieldCheck, Languages, UserRound, Combine, Undo2, ChevronDown, Bot, Paperclip, TriangleAlert, Menu, X, Sparkles } = LucideReact;
+const { Send, Pencil, ArrowUpRight, Check, BarChart3, ShieldCheck, Languages, UserRound, Combine, Undo2, ChevronDown, Bot, Paperclip, TriangleAlert, Menu, X, Sparkles } = LucideReact;
 
 /* Живые данные: очередь и правила приходят из API сервиса (GET /api/queue), здесь нет вшитых обращений. */
 let TICKETS = [], AUTO = [], AUTO_TOTAL = 0, NOTES = [], LLM = { state: "off" }, ACCURACY = {};
@@ -230,6 +234,7 @@ async function loadQueue() {
 const TRY_VIEW = "__try";
 const NOTES_VIEW = "__notes";
 const ARCHIVE_VIEW = "__archive";
+const SHIFT_VIEW = "__shift";
 const reviewTime = (sec) => (sec == null ? "нет данных" : sec < 60 ? sec + " с" : Math.round(sec / 60) + " мин");
 const OUTCOMES = {
   approved: ["одобрено", "var(--ok)"], need_evidence: ["мало доказательств", "var(--p1)"], rejected: ["нарушения нет", "var(--p3)"],
@@ -364,6 +369,7 @@ function Rail({ s, activeId, openGroup, onGroup, onMenu }) {
     <button type="button" class="tab" onClick=${() => onGroup(TRY_VIEW)} aria-current=${openGroup === TRY_VIEW}><${Sparkles} size=${18} /><span>Проверить своё</span></button>
     <button type="button" class="tab" onClick=${() => onGroup(NOTES_VIEW)} aria-current=${openGroup === NOTES_VIEW}><${UserRound} size=${18} /><span>Профили от админа</span></button>
     <button type="button" class="tab" onClick=${() => onGroup(ARCHIVE_VIEW)} aria-current=${openGroup === ARCHIVE_VIEW}><${Check} size=${18} /><span>Архив</span></button>
+    <button type="button" class="tab" onClick=${() => onGroup(SHIFT_VIEW)} aria-current=${openGroup === SHIFT_VIEW}><${BarChart3} size=${18} /><span>Панель смены</span></button>
     ${groupsOf(s.tickets).map((g) => html`<button key=${g.cat} type="button" class="tab" onClick=${() => onGroup(g.cat)}
         aria-current=${openGroup === g.cat || (!openGroup && active && active.cat === g.cat)} aria-label=${g.name + ", обращений: " + g.items.length}>
       <span class="count" style=${{ background: P[g.p].color }}>${g.items.length}</span>
@@ -604,6 +610,54 @@ function ArchiveView({ onBack }) {
         ? html`<span class="flex flex-wrap gap-2"><button type="button" class="chip" onClick=${() => remove(x.ticket_id)}>Да, удалить навсегда</button><button type="button" class="chip" onClick=${() => setAsking(null)}>Оставить</button></span>`
         : html`<button type="button" class="chip" onClick=${() => setAsking(x.ticket_id)}>Удалить</button>`)}
     </div>`)}
+  </div>`;
+}
+
+const Tile = ({ value, label }) => html`<div class="tile"><dd class="font-display text-[26px] font-bold leading-tight num">${value}</dd><dt class="text-sm text-mute mt-1">${label}</dt></div>`;
+const ruNumber = (x) => String(x).replace(".", ",");
+
+function Bars({ rows, color }) {
+  const top = Math.max(1, ...rows.map(([, n]) => n));
+  return html`<div class="grid gap-2">${rows.map(([name, n]) => html`<div key=${name} class="barrow">
+    <span class="truncate">${name}</span>
+    <span class="barline"><i style=${{ width: (n / top) * 100 + "%", background: color }}></i></span>
+    <b class="num">${n}</b>
+  </div>`)}</div>`;
+}
+
+/* Цифры только из действий админов и последнего make eval, с датой замера: зашитых значений здесь нет. */
+function ShiftView({ onBack }) {
+  const [d, setD] = useState(null);
+  useEffect(() => { fetch("/api/stats").then((r) => r.json()).then(setD); }, []);
+  const r = d && d.report;
+  const clean = d && d.sent ? Math.round(((d.sent - d.edited) / d.sent) * 100) + "%" : "нет данных";
+  return html`<div class="enter gutter max-w-[880px] mx-auto py-4 grid gap-4">
+    <div class="flex flex-wrap items-center gap-3">
+      <button type="button" class="chip" onClick=${onBack}><${X} size=${16} /> Закрыть <span class="key">Esc</span></button>
+      <h2 class="font-display text-[26px] font-bold leading-tight">Панель смены</h2>
+    </div>
+    ${d && html`<dl class="grid grid-cols-2 lg:grid-cols-4 gap-3">
+      <${Tile} value=${d.total} label="закрыто за смену" />
+      <${Tile} value=${clean} label="отправлено без правок" />
+      <${Tile} value=${reviewTime(d.median_seconds)} label="медиана рассмотрения" />
+      <${Tile} value=${d.lessons} label="правок выучено" />
+    </dl>
+    <div class="grid md:grid-cols-2 gap-3">
+      <section class="card"><h3 class="label mb-3">Ждут админа</h3>
+        ${d.open_by_category.length ? html`<${Bars} rows=${d.open_by_category.map(([c, n]) => [TYPE_NAMES[c] || c, n])} color="var(--p1)" />` : html`<p class="text-mute">Очередь пуста.</p>`}
+        <p class="text-sm text-mute mt-3">Ответил сам, можно проверить выборочно: ${d.auto}</p></section>
+      <section class="card"><h3 class="label mb-3">Закрыто по видам</h3>
+        ${d.by_category.length ? html`<${Bars} rows=${d.by_category.map(([c, n]) => [TYPE_NAMES[c] || c, n])} color="var(--ok)" />` : html`<p class="text-mute">Пока ничего не закрыто.</p>`}</section>
+    </div>
+    ${r ? html`<section class="card" aria-label="Качество сервиса">
+      <h3 class="label mb-3">Качество сервиса, последний замер ${new Date(r.measured_at * 1000).toLocaleString("ru-RU", { day: "numeric", month: "long", hour: "2-digit", minute: "2-digit" })}${r.llm ? "" : ", без ИИ"}</h3>
+      <dl class="grid grid-cols-2 lg:grid-cols-4 gap-3">
+        <${Tile} value=${ruNumber((r.category_accuracy * 100).toFixed(1)) + "%"} label="категория на ручной разметке" />
+        <${Tile} value=${r.citations_invalid + " из " + r.citations} label="цитат вне правил" />
+        <${Tile} value=${r.usd_per_ticket != null ? "$" + ruNumber(r.usd_per_ticket) : "нет замера"} label="цена обращения" />
+        <${Tile} value=${r.p95_s != null ? ruNumber(r.p95_s) + " с" : "нет замера"} label="p95 ответа" />
+      </dl>
+    </section>` : html`<p class="text-mute">Замера качества пока нет: запустите make eval.</p>`}`}
   </div>`;
 }
 
@@ -922,9 +976,9 @@ function App() {
     <${Header} s=${s} />
     <${Flow} />
     <div class="layout">
-      <${Rail} s=${s} activeId=${activeId} openGroup=${[TRY_VIEW, NOTES_VIEW, ARCHIVE_VIEW].includes(groupOpen) ? groupOpen : group ? group.cat : null} onGroup=${setGroupOpen} onMenu=${() => setDrawer(!drawer)} />
+      <${Rail} s=${s} activeId=${activeId} openGroup=${[TRY_VIEW, NOTES_VIEW, ARCHIVE_VIEW, SHIFT_VIEW].includes(groupOpen) ? groupOpen : group ? group.cat : null} onGroup=${setGroupOpen} onMenu=${() => setDrawer(!drawer)} />
       <main class="main min-w-0">
-        ${groupOpen === TRY_VIEW ? html`<${TryView} onBack=${() => setGroupOpen(null)} />` : groupOpen === ARCHIVE_VIEW ? html`<${ArchiveView} onBack=${() => setGroupOpen(null)} />` : groupOpen === NOTES_VIEW ? html`<${NotesView} notes=${notes} onAdd=${addNote} onDelete=${deleteNote} onBack=${() => setGroupOpen(null)} />` : group ? html`<${GroupView} g=${group} onPick=${pick} onBack=${() => setGroupOpen(null)} />` : active
+        ${groupOpen === TRY_VIEW ? html`<${TryView} onBack=${() => setGroupOpen(null)} />` : groupOpen === ARCHIVE_VIEW ? html`<${ArchiveView} onBack=${() => setGroupOpen(null)} />` : groupOpen === SHIFT_VIEW ? html`<${ShiftView} onBack=${() => setGroupOpen(null)} />` : groupOpen === NOTES_VIEW ? html`<${NotesView} notes=${notes} onAdd=${addNote} onDelete=${deleteNote} onBack=${() => setGroupOpen(null)} />` : group ? html`<${GroupView} g=${group} onPick=${pick} onBack=${() => setGroupOpen(null)} />` : active
           ? html`<${Ticket} t=${active} editing=${editing} generating=${generating} onGenerate=${generate} onType=${(cat) => patchActive((t) => ({ ...t, cat }))} seriesCount=${seriesCount} nudge=${nudge} areaRef=${areaRef} ruleOpen=${ruleOpen} onToggleRule=${() => setRuleOpen(!ruleOpen)}
               onDraft=${(v) => patchActive((t) => ({ ...t, draft: v, edited: true }))} onEdit=${edit} onStopEdit=${() => setEditing(false)}
               onSend=${send} onEsc=${escalate} onChip=${applyChip} onMerge=${merge}

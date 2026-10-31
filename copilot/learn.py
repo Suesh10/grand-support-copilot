@@ -28,6 +28,10 @@ def _read() -> list[dict]:
     return json.loads(LESSONS_PATH.read_text(encoding="utf-8")) if LESSONS_PATH.exists() else []
 
 
+def lessons() -> list[dict]:
+    return _read()
+
+
 def _write(lessons: list[dict]) -> None:
     LESSONS_PATH.parent.mkdir(parents=True, exist_ok=True)
     LESSONS_PATH.write_text(json.dumps(lessons, ensure_ascii=False), encoding="utf-8")

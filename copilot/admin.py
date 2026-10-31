@@ -273,12 +273,38 @@ def api_delete_note(note_id: int) -> dict:
     return {"ok": True}
 
 
+def latest_report() -> dict | None:
+    """Последние измеренные цифры сервиса с датой: панель показывает их, а не значения из кода."""
+    reports = sorted(config.ARTIFACTS_DIR.glob("report*.json"), key=lambda p: p.stat().st_mtime, reverse=True)
+    for path in reports:
+        report = json.loads(path.read_text(encoding="utf-8"))
+        if report.get("gold") and report.get("proposals"):
+            cost, latency = report.get("cost") or {}, report.get("latency") or {}
+            return {"measured_at": int(path.stat().st_mtime), "llm": bool(report.get("llm_model")),
+                    "category_accuracy": report["gold"]["category_accuracy"], "priority_macro_f1": report["gold"]["priority_macro_f1"],
+                    "citations": report["hallucinations"]["citations_total"], "citations_invalid": report["hallucinations"]["citations_not_in_rules_json"],
+                    "needs_human": report["shares"]["needs_human"], "usd_per_ticket": cost.get("usd_per_ticket_blended"),
+                    "p95_s": (latency.get("with_llm_sample") or latency.get("offline") or {}).get("p95_s")}
+    return None
+
+
 @router.get("/api/stats")
 def api_stats() -> dict:
-    """Сводка по действиям: сколько черновиков приняли без правок — главный сигнал качества."""
-    if not FEEDBACK_PATH.exists():
-        return {"total": 0, "sent": 0, "edited": 0, "escalated": 0}
-    rows = [json.loads(line) for line in open(FEEDBACK_PATH, encoding="utf-8")]
-    sent = [r for r in rows if r["action"] == "send"]
-    return {"total": len(rows), "sent": len(sent), "edited": sum(r["edited"] for r in sent),
-            "escalated": sum(r["action"] == "escalate" for r in rows)}
+    """Смена в цифрах. Итог берём из архива: отменённые действия в него не попадают."""
+    rows = [json.loads(line) for line in open(FEEDBACK_PATH, encoding="utf-8")] if FEEDBACK_PATH.exists() else []
+    edited = {r["ticket_id"]: r["edited"] for r in rows if r["action"] == "send"}
+    closed = read_archive()
+    deleted = set(read_deleted())
+    sent = [x for x in closed if x["action"] == "send"]
+    times = sorted(x["review_seconds"] for x in closed if x.get("review_seconds") is not None)
+    open_items = [x for x in load_queue() if x["id"] not in {c["ticket_id"] for c in closed} and x["id"] not in deleted]
+    return {
+        "total": len(closed), "sent": len(sent), "edited": sum(edited.get(x["ticket_id"], False) for x in sent),
+        "escalated": sum(x["action"] == "escalate" for x in closed), "merged": sum(x["action"] == "merge" for x in closed),
+        "median_seconds": times[len(times) // 2] if times else None,
+        "by_category": Counter(x["category"] for x in closed if x["category"]).most_common(),
+        "open_by_priority": sorted(Counter(x["triage"]["priority"] for x in open_items if not x["auto"]).items()),
+        "open_by_category": Counter(x["triage"]["category"] for x in open_items if not x["auto"]).most_common(),
+        "auto": sum(x["auto"] for x in open_items), "lessons": len(learn.lessons()),
+        "report": latest_report(), "llm": llm.status(),
+    }

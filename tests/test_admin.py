@@ -188,7 +188,8 @@ def test_feedback_saved_with_edit_flag(tmp_path, monkeypatch):
     assert client.post("/api/feedback", json=body).json()["ok"] is True
     record = json.loads(path.read_text(encoding="utf-8"))
     assert record["edited"] is True
-    assert client.get("/api/stats").json() == {"total": 1, "sent": 1, "edited": 1, "escalated": 0}
+    stats = client.get("/api/stats").json()
+    assert (stats["sent"], stats["edited"], stats["escalated"]) == (1, 1, 0)
 
 
 def test_generate_under_admin_verdict():
@@ -280,3 +281,15 @@ def test_lesson_with_invented_rule_is_ignored():
     learn.add("x", text, "Игрок наказан по пункту 99.9 ОП.", "complaint.insult", "ru", None)
     _, meta = triage_full({"kind": "complaint", "messages": [{"text": text, "attachments": 1}]})
     assert "99.9" not in meta.get("cited_full", [])
+
+
+def test_stats_count_only_what_stayed_closed():
+    body = {"ticket_id": "demo-06", "action": "send", "draft_before": "a", "draft_after": "a", "category": "report.help", "review_seconds": 40}
+    client.post("/api/feedback", json=body)
+    client.post("/api/feedback", json={**body, "ticket_id": "demo-09", "draft_after": "b", "review_seconds": 80})
+    stats = client.get("/api/stats").json()
+    assert stats["sent"] == 2 and stats["edited"] == 1 and stats["median_seconds"] == 80
+    client.post("/api/feedback", json={"ticket_id": "demo-09", "action": "undo"})
+    stats = client.get("/api/stats").json()
+    assert stats["sent"] == 1 and stats["edited"] == 0
+    assert all(isinstance(n, int) for _, n in stats["open_by_category"])
