@@ -18,7 +18,7 @@ from fastapi import APIRouter, HTTPException
 from fastapi.responses import FileResponse
 from pydantic import BaseModel, Field
 
-from . import clusters, config, learn, llm, reputation, retrieve
+from . import clusters, config, dedupe, learn, llm, reputation, retrieve
 from .draft import handoff_draft
 from .extract import spans
 from .normalize import normalize
@@ -80,8 +80,10 @@ def _load_queue() -> tuple:
     tickets = raw_tickets()
     series = Counter(t.get("reported_nick") for t in tickets if t.get("reported_nick") and not t.get("appeal_of"))
     items = []
+    deduper = dedupe.Deduper()
     for t in tickets:
         request = ticket_to_request(t)
+        request["is_duplicate"] = not t.get("appeal_of") and deduper.is_duplicate(t)
         pred, meta = triage_full(request)
         refs = meta["cited_full"] or meta["rule_refs_full"]
         if t.get("appeal_of"):  # Исход апелляции решает только человек, черновик ничего не обещает.
@@ -92,6 +94,8 @@ def _load_queue() -> tuple:
             "id": t.get("ticket_id"),
             "appeal_of": t.get("appeal_of"),
             "proposal": None if t.get("appeal_of") else meta.get("proposal"),
+            "duplicate": request["is_duplicate"],
+            "shows": t.get("shows"),  # только у демо-примеров: какую функцию показывает обращение
             "kind": t.get("kind"),
             "messages": [{**m, "text": normalize(m["text"]), "spans": spans(normalize(m["text"]))} for m in request["messages"]],
             "history": retrieve.history(player_text(request["messages"])) if t.get("kind") == "complaint" else None,

@@ -6,7 +6,7 @@
 
 import re
 
-from .signals import APPEAL_RE, HACK_RE, OFFLINE_RE, PAYMENT_RE, THREAT_RE
+from .signals import APPEAL_RE, HACK_RE, MASS_BUG_RE, OFFLINE_RE, PAYMENT_RE, THREAT_RE
 
 ALWAYS_HUMAN = {"report.account", "report.payment", "complaint.admin"}
 
@@ -48,6 +48,8 @@ def check(category: str, text: str) -> list[str]:
         reasons.append("вопрос о платеже или возврате")
     if THREAT_RE.search(text) or OFFLINE_RE.search(text):
         reasons.append("возможная угроза вне игры")
+    if MASS_BUG_RE.search(text):
+        reasons.append("возможен массовый сбой")
     if INJECTION_RE.search(text):
         reasons.append("попытка управлять ответом через текст обращения")
     if category.startswith("complaint.") and category != "complaint.invalid":

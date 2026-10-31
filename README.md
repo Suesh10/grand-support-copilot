@@ -15,7 +15,7 @@
 | Запустить за 3 команды | [Как запустить](#как-запустить) |
 | Проверить контракт из ТЗ | `POST /triage` и `make predict`, там же |
 | Увидеть метрики и честные оговорки | [docs/REPORT.md](docs/REPORT.md) |
-| Посмотреть примеры ответов | [docs/examples.md](docs/examples.md) |
+| Посмотреть все функции на примерах | [docs/examples.md](docs/examples.md) |
 | Понять устройство | [Как это устроено](#как-это-устроено) |
 | Открыть интерфейс админа | `make serve`, затем `/admin` |
 
@@ -75,7 +75,7 @@ make serve DATA=/путь/к/handout
 ```
 
 - `POST http://localhost:8000/triage` — контракт из ТЗ
-- `http://localhost:8000/admin` — очередь админа на примерах из `examples/sample_tickets.jsonl`
+- `http://localhost:8000/admin` — очередь админа: 29 придуманных примеров из `examples/sample_tickets.jsonl`, у каждого написано, какую функцию он показывает
 - `http://localhost:8000/docs` — интерактивная документация API
 - `http://localhost:8000/health` — состояние моделей и LLM
 

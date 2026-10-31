@@ -376,6 +376,14 @@ def test_admin_can_answer_an_appeal_in_one_click():
     assert client.post("/api/generate/demo-05-appeal", json={"verdict": "appeal_approved"}).status_code == 422  # снятие пишет сам админ
 
 
+def test_demo_queue_shows_every_function():
+    items = {i["id"]: i for i in client.get("/api/queue").json()["items"]}
+    assert all(i["shows"] for k, i in items.items() if not i["appeal_of"])
+    assert items["demo-21"]["duplicate"] and items["demo-23"]["duplicate"]
+    assert not items["demo-20"]["duplicate"] and not items["demo-22"]["duplicate"]
+    assert {i["triage"]["lang"] for i in items.values()} >= {"ru", "kk", "uz", "en", "es", "pt"}
+
+
 def test_old_outage_is_not_shown_as_current(monkeypatch):
     import time
     monkeypatch.setattr(llm, "enabled", lambda: True)

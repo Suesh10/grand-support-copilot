@@ -15,6 +15,7 @@ from sklearn.feature_extraction.text import TfidfVectorizer
 from . import config
 from .labels import REF_CATEGORY
 from .rules import load_points
+from .signals import THREAT_RE
 
 # Пункт, который обосновывает сам исход: это правила подачи жалоб.
 VERDICT_REFS = {"need_evidence": "1.2.2 ЖБ", "invalid_format": "1.3.1 ЖБ", "duplicate": "1.2.9 ЖБ"}
@@ -83,6 +84,7 @@ def candidates(category: str, verdict: str | None, text: str, player_refs: list[
     fits = [r for r in hits if REF_CATEGORY.get(r) == category and _applies(r, text)]
     ranked = [
         VERDICT_REFS.get(verdict or ""),
+        "2.6 ОП" if category == "complaint.insult" and THREAT_RE.search(text) else None,  # пункт об угрозах, а не об оскорблении
         *[r for r in player_refs if REF_CATEGORY.get(r) == category],
         *fits,
         PRIMARY_REFS.get(category),

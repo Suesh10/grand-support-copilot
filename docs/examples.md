@@ -2,6 +2,44 @@
 
 Обращения придуманы командой (не из данных Grand Mobile). Ответы — реальный вывод `POST /triage`.
 
+## Что умеет сервис и где это увидеть
+
+Запустите `make serve` и откройте `http://localhost:8000/admin`: в очереди 29 примеров, у каждого написано, что он показывает.
+
+| Функция | Пример | Где смотреть |
+|---|---|---|
+| Категория, приоритет, язык, ник, пункты правил | любое обращение | `POST /triage`, `make predict` |
+| Решение с наказанием дословно из правил | `demo-01` | предложение в черновике |
+| Честное «не знаю»: без уверенности решение не называется | `demo-29`, `demo-02` | черновик «на проверке» |
+| Отказ, когда доказательств нет | `demo-17` | черновик объясняет, чего не хватает |
+| Неверно оформленная жалоба | `demo-18` | ссылка на правила подачи жалоб |
+| Защита: взлом и платёж всегда человеку | `demo-08`, `demo-16`, `demo-25`, `demo-26` | приоритет P0 |
+| Защита: апелляция и жалоба на администратора | `demo-03`, `demo-19`, `demo-28` | черновик ничего не обещает |
+| Защита: угроза и массовый сбой | `demo-13`, `demo-14` | приоритет P0 |
+| Защита от приказов в тексте и выдуманных пунктов | `demo-15`, `demo-16` | приказ не выполнен, пункта 99.1 в ответе нет |
+| Шесть языков | ru, `demo-27` kk, `demo-04` uz, `demo-24` en, `demo-25` es, `demo-26` pt | ответ на языке игрока |
+| Починка сломанной кодировки | `demo-07` | казахский текст с ї вместо ү |
+| Перевод для администратора | `demo-04`, `demo-27` | под текстом игрока |
+| Дубли и спам | `demo-21`, `demo-23`, `demo-09` | список «отвечено автоматически» в меню, отметка «Дубль» |
+| Серия жалоб на одного игрока и объединение | `demo-01`, `demo-11`, `demo-12` | кнопка «Объединить» |
+| Мини-профиль игрока | `demo-11` | наведение на зону игрока |
+| Доказательства с предпросмотром | `demo-05` | угол рамки: наведение и клик |
+| Апелляция отдельным обращением | `demo-05` | вкладка апелляций |
+| Похожие прошлые случаи | любая жалоба | блок истории решений |
+| Обучение на правках администратора | исправьте черновик и отправьте | следующий похожий ответ берёт правку |
+| Панель смены, шаблоны, слепая оценка, архив | меню слева | работают на данных команды |
+| Проверка своего обращения | меню слева | любой текст, ответ по контракту |
+
+Мини-профиль: наведение на зону игрока показывает его историю обращений.
+
+![Мини-профиль игрока](demo_profile.jpg)
+
+Доказательства: наведение показывает файл, клик открывает его целиком.
+
+![Предпросмотр доказательства](demo_proof.jpg)
+
+## Ответы сервиса
+
 ## Жалоба с доказательствами, русский
 
 **Запрос**
@@ -18,7 +56,7 @@
 }
 ```
 
-**Ответ** (источник черновика: `llm`, 1.99 с, $0.00058)
+**Ответ** (источник черновика: `llm`, 2.22 с, $0.00060)
 ```json
 {
   "lang": "ru",
@@ -35,7 +73,7 @@
   },
   "draft_reply": {
     "lang": "ru",
-    "text": "Приветствую, уважаемый игрок. Ваша жалоба была рассмотрена и одобрена. Игрок Arman_Petrov получит наказание за нарушение пункта 2.1 ОП.\n\nС уважением, Администрация \nGrandMobile",
+    "text": "Приветствую, уважаемый игрок. Ваша жалоба была рассмотрена и одобрена. Действительно, игрок Arman_Petrov нарушил пункт 2.1 ОП. К нему будет применено наказание.\n\nС уважением, Администрация \nGrandMobile",
     "cited": [
       "2.1"
     ]
@@ -127,7 +165,7 @@
   },
   "draft_reply": {
     "lang": "uz",
-    "text": "Hurmatli o'yinchi, shikoyatingiz uchun tashakkur bildiramiz. Shikoyatingiz qabul qilindi. Administratsiya materiallarni qoidalarning 5.2 ОП bandi bo'yicha tekshirib, qaror haqida xabar beradi.",
+    "text": "Hurmatli o'yinchi, shikoyatingiz uchun rahmat. Administratsiya materiallarni qoidalarning 5.2 ОП bandi bo'yicha tekshirib, qaror haqida xabar beradi.",
     "cited": [
       "5.2"
     ]
@@ -236,7 +274,7 @@
 }
 ```
 
-**Ответ** (источник черновика: `llm`, 0.77 с, $0.00045)
+**Ответ** (источник черновика: `llm`, 1.37 с, $0.00043)
 ```json
 {
   "lang": "ru",
@@ -378,7 +416,7 @@
   },
   "draft_reply": {
     "lang": "uz",
-    "text": "Hurmatli o'yinchi, murojaatingiz uchun tashakkur bildiramiz. Murojaatingiz qabul qilindi. Administratsiya vaziyatni qoidalarning 3.4 ОП bandi bo'yicha tekshirib, qaror haqida xabar beradi.",
+    "text": "Hurmatli o'yinchi, murojaatingiz uchun rahmat. Administratsiya vaziyatni qoidalarning 3.4 ОП bandi bo'yicha tekshirib, qaror haqida xabar beradi.",
     "cited": [
       "3.4"
     ]
@@ -452,7 +490,7 @@
 }
 ```
 
-**Ответ** (источник черновика: `llm`, 0.71 с, $0.00035)
+**Ответ** (источник черновика: `llm`, 0.80 с, $0.00039)
 ```json
 {
   "lang": "ru",
@@ -515,5 +553,390 @@
   "needs_human": false,
   "confidence": 0.9,
   "reasons": []
+}
+```
+
+## Массовый сбой
+
+**Запрос**
+```json
+{
+  "kind": "report",
+  "messages": [
+    {
+      "role": "player",
+      "text": "сервер лежит, у всех вылетает, никто не может зайти"
+    }
+  ]
+}
+```
+
+**Ответ** (источник черновика: `handoff`)
+```json
+{
+  "lang": "ru",
+  "category": "report.question",
+  "priority": "p0",
+  "is_spam_or_duplicate": false,
+  "extracted": {
+    "nickname": null,
+    "rule_refs": [],
+    "has_evidence": false,
+    "server": null
+  },
+  "draft_reply": {
+    "lang": "ru",
+    "text": "Здравствуйте! Ваше обращение передано администрации. Пожалуйста, ожидайте ответа.",
+    "cited": []
+  },
+  "needs_human": true,
+  "confidence": 0.84,
+  "reasons": [
+    "возможен массовый сбой"
+  ]
+}
+```
+
+## Угроза вне игры
+
+**Запрос**
+```json
+{
+  "kind": "complaint",
+  "messages": [
+    {
+      "role": "player",
+      "attachments": 1,
+      "text": "Rustam_Aliev написал мне в личку: найду тебя и убью, знаю где ты живёшь. Скрин прикладываю"
+    }
+  ]
+}
+```
+
+**Ответ** (источник черновика: `proposal`)
+```json
+{
+  "lang": "ru",
+  "category": "complaint.insult",
+  "priority": "p0",
+  "is_spam_or_duplicate": false,
+  "extracted": {
+    "nickname": "Rustam_Aliev",
+    "rule_refs": [],
+    "has_evidence": true,
+    "server": null
+  },
+  "draft_reply": {
+    "lang": "ru",
+    "text": "Приветствую, уважаемый игрок. Ваша жалоба на Rustam_Aliev принята. Администрация проверит приложенные материалы по пункту 2.6 ОП и сообщит решение.",
+    "cited": [
+      "2.6"
+    ]
+  },
+  "needs_human": true,
+  "confidence": 0.6,
+  "reasons": [
+    "возможная угроза вне игры",
+    "решение о наказании подтверждает администратор"
+  ]
+}
+```
+
+## Жалоба без доказательств
+
+**Запрос**
+```json
+{
+  "kind": "complaint",
+  "messages": [
+    {
+      "role": "player",
+      "text": "Nurlan_Akhmetov обманул меня при продаже дома"
+    }
+  ]
+}
+```
+
+**Ответ** (источник черновика: `llm`, 0.90 с, $0.00065)
+```json
+{
+  "lang": "ru",
+  "category": "complaint.scam",
+  "priority": "p3",
+  "is_spam_or_duplicate": false,
+  "extracted": {
+    "nickname": "Nurlan_Akhmetov",
+    "rule_refs": [],
+    "has_evidence": false,
+    "server": null
+  },
+  "draft_reply": {
+    "lang": "ru",
+    "text": "Приветствую, уважаемый игрок. Ваша жалоба была рассмотрена и отклонена. Нам недостаточно доказательств для того, чтобы наказать игрока Nurlan_Akhmetov. Такие сделки нужно записывать на видео, в нем должен быть договор между вами и сам факт обмана от игрока. Основание: пункт 4.1 ОП, 1.2.2 ЖБ.",
+    "cited": [
+      "4.1",
+      "1.2.2"
+    ]
+  },
+  "needs_human": true,
+  "confidence": 0.85,
+  "reasons": [
+    "решение о наказании подтверждает администратор"
+  ]
+}
+```
+
+## Пустая жалоба с вложением
+
+**Запрос**
+```json
+{
+  "kind": "complaint",
+  "messages": [
+    {
+      "role": "player",
+      "attachments": 1,
+      "text": "жб"
+    }
+  ]
+}
+```
+
+**Ответ** (источник черновика: `llm`, 0.98 с, $0.00046)
+```json
+{
+  "lang": "ru",
+  "category": "complaint.invalid",
+  "priority": "p3",
+  "is_spam_or_duplicate": true,
+  "extracted": {
+    "nickname": null,
+    "rule_refs": [],
+    "has_evidence": true,
+    "server": null
+  },
+  "draft_reply": {
+    "lang": "ru",
+    "text": "Приветствую, ваша жалоба не будет рассмотрена так как составлена с нарушением правил подачи жалоб. Основание: пункт 1.3.1 ЖБ.",
+    "cited": [
+      "1.3.1"
+    ]
+  },
+  "needs_human": true,
+  "confidence": 0.94,
+  "reasons": [
+    "вложения не видны сервису, доказательства оценивает администратор"
+  ]
+}
+```
+
+## Жалоба на администратора
+
+**Запрос**
+```json
+{
+  "kind": "complaint",
+  "messages": [
+    {
+      "role": "player",
+      "attachments": 1,
+      "text": "администратор Admin_Serik выдал мне наказание просто так и злоупотребляет правами"
+    }
+  ]
+}
+```
+
+**Ответ** (источник черновика: `proposal`)
+```json
+{
+  "lang": "ru",
+  "category": "complaint.admin",
+  "priority": "p2",
+  "is_spam_or_duplicate": false,
+  "extracted": {
+    "nickname": "Admin_Serik",
+    "rule_refs": [],
+    "has_evidence": true,
+    "server": null
+  },
+  "draft_reply": {
+    "lang": "ru",
+    "text": "Приветствую, уважаемый игрок. Ваше обращение принято. Администрация проверит ситуацию по пункту 3.4 ОП и сообщит решение.",
+    "cited": [
+      "3.4"
+    ]
+  },
+  "needs_human": true,
+  "confidence": 0.75,
+  "reasons": [
+    "такие обращения всегда решает человек",
+    "решение о наказании подтверждает администратор"
+  ]
+}
+```
+
+## Дубль жалобы: тот же игрок на того же обвиняемого в течение часа
+
+**Запрос**
+```json
+{
+  "kind": "complaint",
+  "is_duplicate": true,
+  "messages": [
+    {
+      "role": "player",
+      "attachments": 1,
+      "text": "повторно: Kirill_Morozov убил меня в зелёной зоне, где ответ?"
+    }
+  ]
+}
+```
+
+**Ответ** (источник черновика: `proposal`)
+```json
+{
+  "lang": "ru",
+  "category": "complaint.dm",
+  "priority": "p2",
+  "is_spam_or_duplicate": true,
+  "extracted": {
+    "nickname": "Kirill_Morozov",
+    "rule_refs": [],
+    "has_evidence": true,
+    "server": null
+  },
+  "draft_reply": {
+    "lang": "ru",
+    "text": "Приветствую, уважаемый игрок. Эта жалоба повторяет уже поданную, она на рассмотрении. Подавать её ещё раз не нужно, дождитесь решения.",
+    "cited": []
+  },
+  "needs_human": false,
+  "confidence": 0.68,
+  "reasons": []
+}
+```
+
+## Английский: вопрос игрока
+
+**Запрос**
+```json
+{
+  "kind": "report",
+  "messages": [
+    {
+      "role": "player",
+      "text": "hello, how can I buy a car? I cant find the dealership on the map"
+    }
+  ]
+}
+```
+
+**Ответ** (источник черновика: `handoff`)
+```json
+{
+  "lang": "en",
+  "category": "report.question",
+  "priority": "p3",
+  "is_spam_or_duplicate": false,
+  "extracted": {
+    "nickname": null,
+    "rule_refs": [],
+    "has_evidence": false,
+    "server": null
+  },
+  "draft_reply": {
+    "lang": "en",
+    "text": "Hello! Your request has been forwarded to the administration. Please wait for a reply.",
+    "cited": []
+  },
+  "needs_human": true,
+  "confidence": 0.88,
+  "reasons": [
+    "нет шаблона на языке игрока"
+  ]
+}
+```
+
+## Испанский: взлом аккаунта
+
+**Запрос**
+```json
+{
+  "kind": "report",
+  "messages": [
+    {
+      "role": "player",
+      "text": "me robaron la cuenta y cambiaron la contraseña, ayuda"
+    }
+  ]
+}
+```
+
+**Ответ** (источник черновика: `handoff`)
+```json
+{
+  "lang": "es",
+  "category": "report.account",
+  "priority": "p0",
+  "is_spam_or_duplicate": false,
+  "extracted": {
+    "nickname": null,
+    "rule_refs": [],
+    "has_evidence": false,
+    "server": null
+  },
+  "draft_reply": {
+    "lang": "es",
+    "text": "¡Hola! Su solicitud ha sido enviada a la administración. Por favor, espere la respuesta.",
+    "cited": []
+  },
+  "needs_human": true,
+  "confidence": 0.79,
+  "reasons": [
+    "такие обращения всегда решает человек",
+    "подозрение на взлом аккаунта"
+  ]
+}
+```
+
+## Португальский: платёж
+
+**Запрос**
+```json
+{
+  "kind": "report",
+  "messages": [
+    {
+      "role": "player",
+      "text": "paguei e não recebi as moedas no jogo"
+    }
+  ]
+}
+```
+
+**Ответ** (источник черновика: `handoff`)
+```json
+{
+  "lang": "pt",
+  "category": "report.payment",
+  "priority": "p0",
+  "is_spam_or_duplicate": false,
+  "extracted": {
+    "nickname": null,
+    "rule_refs": [],
+    "has_evidence": false,
+    "server": null
+  },
+  "draft_reply": {
+    "lang": "pt",
+    "text": "Olá! Sua solicitação foi encaminhada à administração. Por favor, aguarde a resposta.",
+    "cited": []
+  },
+  "needs_human": true,
+  "confidence": 0.78,
+  "reasons": [
+    "такие обращения всегда решает человек",
+    "вопрос о платеже или возврате"
+  ]
 }
 ```

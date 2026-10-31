@@ -230,6 +230,7 @@ function toTicket(x) {
     ref: rule ? rule.ref : null, chips: chips.length ? chips : null,
     draft: tr.draft_reply.text, original: tr.draft_reply.text, human: tr.reasons,
     series: x.series > 1 ? nick : null, profiles: x.profiles || {}, proposal: x.proposal, history: x.history,
+    duplicate: x.duplicate, shows: x.shows,
   };
 }
 
@@ -240,7 +241,7 @@ async function loadQueue() {
   ACCURACY = data.proposal_accuracy || {};
   const all = data.items.map((x) => ({ x, t: toTicket(x) }));
   TICKETS = all.filter((a) => !a.x.auto).map((a) => a.t);
-  AUTO = all.filter((a) => a.x.auto).map(({ t }) => ({ id: t.id, text: t.text, lang: t.lang, reply: t.draft, ticket: t }));
+  AUTO = all.filter((a) => a.x.auto).map(({ t }) => ({ id: t.id, text: t.text, lang: t.lang, reply: t.draft, ticket: t, duplicate: t.duplicate, shows: t.shows }));
   AUTO_TOTAL = AUTO.length;
 }
 
@@ -441,6 +442,8 @@ function Drawer({ s, activeId, autoOpen, onAuto, onCheck, onPick, onClose }) {
           const done = s.autoChecked.includes(a.id);
           return html`<li key=${a.id} class="grid gap-1 text-[15px]">
             <p class="font-semibold">«${a.text}» <span class="font-code text-xs text-mute">${LANG[a.lang]}</span></p>
+            ${a.duplicate && html`<p class="flex items-center gap-2 text-sm font-semibold"><${Combine} size=${14} class="flex-none" /> Дубль</p>`}
+            ${a.shows && html`<p class="text-sm text-mute">Пример: ${a.shows}</p>`}
             <p class="text-mute">${a.reply}</p>
             <button type="button" disabled=${done} onClick=${() => onCheck(a.id)} class="chip justify-self-start mt-1">${done ? html`<${Check} size=${14} /> Проверено` : "Ответ верный"}</button>
           </li>`;
@@ -810,6 +813,8 @@ function Ticket({ t, editing, generating, onGenerate, onType, seriesCount, nudge
       <h2 class="font-display text-[26px] font-bold leading-tight break-words">${t.appealOf ? `Апелляция по жалобе ${t.appealOf}` : `${t.kind === "complaint" ? "Жалоба" : "Репорт"}: ${(TYPE_NAMES[t.cat] || "обращение").toLowerCase()}`}</h2>
       <span class="ml-auto text-sm text-mute"><span class="font-code">#${t.id}</span> · ${t.server}</span>
     </div>
+    ${t.shows && html`<p class="text-[15px] text-mute"><b>Что показывает этот пример: </b>${t.shows}</p>`}
+    ${t.duplicate && html`<p class="flex items-center gap-2 text-[15px] font-semibold"><${Combine} size=${18} class="flex-none" /> Дубль: этот игрок уже писал об этом в течение часа.</p>`}
     ${seriesCount > 0 && html`<div class="flex flex-wrap items-center gap-3 rounded-[2px] border border-[var(--line)] bg-[var(--paper)] px-5 py-3">
       <${Combine} size=${20} class="flex-none" />
       <p class="flex-1 min-w-[220px] font-semibold">На ${t.series} ещё ${seriesCount} ${seriesCount === 1 ? "жалоба" : "жалобы"} в очереди. Объединить?</p>

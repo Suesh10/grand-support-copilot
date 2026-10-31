@@ -69,9 +69,9 @@ def proposal_draft(lang: str, category: str, verdict: str | None, nick: str | No
     table = templates.PROPOSALS[lang]
     appeal = category == "complaint.admin"
     key = "appeal_review" if appeal else "review"
-    if verdict in ("approved", "need_evidence", "appeal_rejected"):
+    if verdict in ("approved", "need_evidence", "appeal_rejected", "duplicate"):
         key = verdict
-    if key not in table or (verdict and verdict not in ("approved", "need_evidence", "appeal_rejected", "under_review")):
+    if key not in table or (verdict and verdict not in ("approved", "need_evidence", "appeal_rejected", "duplicate", "under_review")):
         return None
     topic = next((r for r in refs if REF_CATEGORY.get(r) == category or (category == "complaint.invalid" and r.endswith(" ЖБ"))), None)
     by = templates.BY_RULE[lang].format(ref=topic) if topic else ""

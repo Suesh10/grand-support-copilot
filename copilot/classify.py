@@ -66,7 +66,7 @@ def classify(kind: str, text: str, has_evidence: bool, rule_refs_raw: str = "",
             category, conf = "complaint.admin", max(conf, 0.75)
         # «Неоформленная» означает, что темы не нашлось: явные слова темы важнее этого вывода модели.
         if category == "complaint.invalid":
-            category, conf = next(((cat, 0.6) for cat, rx in TEXT_RULES if rx.search(text)), (category, conf))
+            category, conf = next(((cat, 0.6) for cat, rx in [*TEXT_RULES, ("complaint.insult", THREAT_RE)] if rx.search(text)), (category, conf))
         if kind == "report":
             for cat, rx in REPORT_RULES:
                 if cat in CRITICAL_REPORT and rx.search(text):

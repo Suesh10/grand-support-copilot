@@ -16,6 +16,7 @@ ALWAYS_TEMPLATE = {"report.account", "report.payment"}
 
 log = logging.getLogger(__name__)
 REPLY_LANGS = {"kk", "uz", "en", "es", "pt"}
+FOREIGN_HANDOFF = {"en", "es", "pt"}
 UNDER_REVIEW = "under_review"
 # С какой уверенности исход можно предложить админу. Подобрано на валидации: одна планка на всех пропускала
 # «оформлена неверно» с точностью около 30% и выбрасывала «одобрено» с точностью 85%. Остальные исходы
@@ -105,8 +106,15 @@ def triage_full(request: dict, verdict_override: str | None = None) -> tuple[dic
 
     meta = {"draft_source": None, "is_duplicate": is_duplicate}
     draft = None
+    # Срочный репорт (сбой, угроза): шаблоны здесь просят «уточнить вопрос», отвечает человек.
+    if kind == "report" and priority == "p0" and category not in ALWAYS_TEMPLATE:
+        draft, meta["draft_source"] = handoff_draft(lang), "handoff"
+    # Репорты на en/es/pt: шаблонов нет, а модель копировала русские («спешу на помощь» на вопрос о покупке машины).
+    if kind == "report" and lang in FOREIGN_HANDOFF:
+        draft, meta["draft_source"] = handoff_draft(lang), "handoff"
+        needs_human, reasons = True, reasons or ["нет шаблона на языке игрока"]
     # Админ уже исправлял такой ответ: его правка важнее шаблона и догадок модели.
-    lesson = None if verdict_override else learn.find(text, category, lang)
+    lesson = None if verdict_override or draft else learn.find(text, category, lang)
     if lesson and draft is None:
         reply = adapt_reply(lesson["reply"], lesson.get("nick"), facts["nickname"])
         mentioned = parse_refs(reply, default_section="ОП")
@@ -132,7 +140,8 @@ def triage_full(request: dict, verdict_override: str | None = None) -> tuple[dic
     # «На проверке» и апелляции пишет шаблон: на замере модель называла там решения, которых никто не принимал,
     # а по близости к ответам админов выигрыша не давала.
     waits_for_admin = kind == "complaint" and not verdict_override and (verdict == UNDER_REVIEW or category == "complaint.admin")
-    if draft is None and llm.enabled() and not waits_for_admin:
+    # Дубль: короткий шаблон лучше, модель писала здесь длинные извинения.
+    if draft is None and llm.enabled() and not waits_for_admin and verdict != "duplicate":
         examples = templates.style_examples(lang, kind, verdict) + [
             adapt_reply(c["reply"], c.get("reported_nick"), facts["nickname"])
             for c in retrieve.similar(kind, text, k=3, verdict=known_verdict, lang=lang)]
@@ -145,7 +154,7 @@ def triage_full(request: dict, verdict_override: str | None = None) -> tuple[dic
                 needs_human = True
             # Причины модели нужны, только если своих нет: пояснения вроде «есть шаблон» админу не помогают.
             llm_reasons = result.pop("reasons")
-            reasons = reasons or llm_reasons or (["модель просит проверить черновик"] if needs_human else [])
+            reasons = reasons or ((llm_reasons or ["модель просит проверить черновик"]) if needs_human else [])
             draft = result
             # Фильтр выдуманных фактов действует и на LLM: он тоже копирует их из примеров.
             if INVENTED_FACT_RE.search(draft["text"]) and verdict not in ("duplicate", "appeal_rejected"):

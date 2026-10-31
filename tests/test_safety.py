@@ -158,6 +158,36 @@ def test_money_unban_hack_go_to_human(text):
     assert resp["reasons"]
 
 
+def test_mass_outage_goes_to_human_without_asking_to_clarify():
+    resp = triage({"kind": "report", "messages": [{"role": "player", "text": "сервер лежит, никто не может зайти"}]})
+    assert resp["priority"] == "p0" and resp["needs_human"] is True
+    assert "уточните" not in resp["draft_reply"]["text"].lower()
+
+
+def test_threat_complaint_cites_the_rule_about_threats():
+    text = "Damir_Orlov написал мне: найду тебя и убью, скрин прикладываю"
+    resp = triage({"kind": "complaint", "messages": [{"role": "player", "text": text, "attachments": 1}]})
+    assert resp["category"] == "complaint.insult" and resp["priority"] == "p0"
+    assert "2.6" in resp["draft_reply"]["cited"]
+
+
+def test_duplicate_complaint_says_so():
+    text = "Damir_Orlov оскорбил меня в чате, скрин есть"
+    resp = triage({"kind": "complaint", "is_duplicate": True, "messages": [{"role": "player", "text": text, "attachments": 1}]})
+    assert resp["is_spam_or_duplicate"] is True
+    assert "повторяет" in resp["draft_reply"]["text"]
+
+
+def test_foreign_report_is_not_answered_with_a_copied_template():
+    resp = triage({"kind": "report", "messages": [{"role": "player", "text": "hello, how can I buy a car? I cant find the dealership"}]})
+    assert resp["needs_human"] is True and resp["reasons"] and "forwarded" in resp["draft_reply"]["text"]
+
+
+def test_hack_in_spanish_is_handed_off_with_a_ready_text():
+    resp = triage({"kind": "report", "messages": [{"role": "player", "text": "me robaron la cuenta y cambiaron la contraseña"}]})
+    assert resp["needs_human"] is True and "solicitud" in resp["draft_reply"]["text"]
+
+
 PROBES = [json.loads(line) for line in (Path(__file__).parent.parent / "examples" / "provocations.jsonl").open(encoding="utf-8")]
 
 
