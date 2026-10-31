@@ -156,8 +156,12 @@
   @media (max-width: 759px) {
     .rail { overflow-x: auto; }
     .tab { width: auto; flex: none; }
-    .card { padding: 20px; }
+    .card { padding: 14px 16px; }
     .drawer { left: 0; width: 100%; }
+    .flow, .key { display: none; }
+    .btn { padding: 0 12px; min-width: 0 !important; }
+    .btn-main { flex-basis: 100%; }
+    .btn:not(.btn-main) { flex: 1 1 40%; }
     .hide-phone { display: none; }
   }
   @media (prefers-reduced-motion: reduce) { *, *::before, *::after { animation: none !important; transition: none !important; } }
