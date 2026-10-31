@@ -110,13 +110,20 @@ def _load_queue() -> tuple:
     return tuple(items)
 
 
+def reports() -> list[tuple]:
+    """Отчёты make eval с прогнозом: сначала замеры с LLM, внутри них самые свежие."""
+    found = []
+    for path in config.ARTIFACTS_DIR.glob("report*.json"):
+        report = json.loads(path.read_text(encoding="utf-8"))
+        if report.get("gold") and report.get("proposals"):
+            found.append((bool(report.get("llm_model")), path.stat().st_mtime, report))
+    return sorted(found, key=lambda x: x[:2], reverse=True)
+
+
 def proposal_accuracy() -> dict:
-    """Точность прогноза из последнего отчёта make eval: интерфейс показывает измеренное, а не зашитое."""
-    reports = sorted(config.ARTIFACTS_DIR.glob("report*.json"), key=lambda p: p.stat().st_mtime, reverse=True)
-    for path in reports:
-        proposals = json.loads(path.read_text(encoding="utf-8")).get("proposals")
-        if proposals:
-            return {verdict: row["precision"] for verdict, row in proposals["by_outcome"].items() if row["checked"] >= 10}
+    """Точность прогноза из последнего отчёта: интерфейс показывает измеренное, а не зашитое."""
+    for _, _, report in reports():
+        return {verdict: row["precision"] for verdict, row in report["proposals"]["by_outcome"].items() if row["checked"] >= 10}
     return {}
 
 
@@ -376,16 +383,13 @@ def api_review_score(body: ReviewScore) -> dict:
 
 def latest_report() -> dict | None:
     """Последние измеренные цифры сервиса с датой: панель показывает их, а не значения из кода."""
-    reports = sorted(config.ARTIFACTS_DIR.glob("report*.json"), key=lambda p: p.stat().st_mtime, reverse=True)
-    for path in reports:
-        report = json.loads(path.read_text(encoding="utf-8"))
-        if report.get("gold") and report.get("proposals"):
-            cost, latency = report.get("cost") or {}, report.get("latency") or {}
-            return {"measured_at": int(path.stat().st_mtime), "llm": bool(report.get("llm_model")),
-                    "category_accuracy": report["gold"]["category_accuracy"], "priority_macro_f1": report["gold"]["priority_macro_f1"],
-                    "citations": report["hallucinations"]["citations_total"], "citations_invalid": report["hallucinations"]["citations_not_in_rules_json"],
-                    "needs_human": report["shares"]["needs_human"], "usd_per_ticket": cost.get("usd_per_ticket_blended"),
-                    "p95_s": (latency.get("with_llm_sample") or latency.get("offline") or {}).get("p95_s")}
+    for _, measured_at, report in reports():
+        cost, latency = report.get("cost") or {}, report.get("latency") or {}
+        return {"measured_at": int(measured_at), "llm": bool(report.get("llm_model")),
+                "category_accuracy": report["gold"]["category_accuracy"], "priority_macro_f1": report["gold"]["priority_macro_f1"],
+                "citations": report["hallucinations"]["citations_total"], "citations_invalid": report["hallucinations"]["citations_not_in_rules_json"],
+                "needs_human": report["shares"]["needs_human"], "usd_per_ticket": cost.get("usd_per_ticket_blended"),
+                "p95_s": (latency.get("with_llm_sample") or latency.get("offline") or {}).get("p95_s")}
     return None
 
 
