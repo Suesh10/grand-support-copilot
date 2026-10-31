@@ -17,7 +17,7 @@ sys.path.insert(0, str(__import__("pathlib").Path(__file__).resolve().parent.par
 
 from copilot import clusters, config, reputation, retrieve  # noqa: E402
 from copilot.retrieve import USEFUL_VERDICTS  # noqa: E402
-from copilot.labels import player_text, verdict_of, weak_label  # noqa: E402
+from copilot.labels import likely_admins, player_text, verdict_of, weak_label  # noqa: E402
 from copilot.model import MODEL_PATH, build_pipeline, model_input  # noqa: E402
 from copilot.normalize import normalize  # noqa: E402
 
@@ -74,6 +74,8 @@ def main() -> None:
     print(f"\n== verdict: {len(data)} жалоб, accuracy на отложенных {accuracy_score([y for _, y in data[split:]], pred):.3f}")
     pipe.fit([x for x, _ in data], [y for _, y in data])
     models["verdict"] = pipe
+    models["admins"] = likely_admins(tickets)
+    print(f"Вероятных администраторов: {len(models['admins'])}")
 
     config.ARTIFACTS_DIR.mkdir(parents=True, exist_ok=True)
     joblib.dump(models, MODEL_PATH, compress=3)

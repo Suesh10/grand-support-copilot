@@ -43,3 +43,9 @@ def predict(kind: str, text: str, rule_refs_raw: str = "") -> tuple[str, float] 
     proba = pipe.predict_proba([model_input(kind, text, rule_refs_raw)])[0]
     best = proba.argmax()
     return pipe.classes_[best], float(proba[best])
+
+
+def is_admin(player_hash: str | None) -> bool:
+    """Часто ли на этого игрока подают апелляции: так выглядит администратор, выдавший наказание."""
+    models = load()
+    return bool(models and player_hash and player_hash in models.get("admins", ()))

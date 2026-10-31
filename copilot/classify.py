@@ -12,6 +12,7 @@ from .labels import APPEAL_TEXT_RE, REPORT_RULES, TEXT_RULES
 from .signals import HACK_RE, MASS_BUG_RE, PAYMENT_RE, THREAT_RE
 
 CRITICAL_REPORT = {"report.account", "report.payment"}
+ADMIN_HINT_BELOW = 0.7
 
 KEYWORDS = {
     "complaint.cheat": r"чит|soft|софт|аим|aim|wh\b|вх\b|летает|спидхак|cheat|hack",
@@ -50,7 +51,8 @@ def is_empty(text: str) -> bool:
     return len(text.strip()) < 3 or bool(EMPTY_RE.match(text.strip()))
 
 
-def classify(kind: str, text: str, has_evidence: bool, rule_refs_raw: str = "") -> tuple[str, str, float]:
+def classify(kind: str, text: str, has_evidence: bool, rule_refs_raw: str = "",
+             reported_hash: str | None = None) -> tuple[str, str, float]:
     """Вернуть (категория, приоритет, уверенность)."""
     t = text.lower()
     category, conf = None, 0.4
@@ -81,6 +83,9 @@ def classify(kind: str, text: str, has_evidence: bool, rule_refs_raw: str = "") 
             if re.search(pattern, t):
                 category, conf = cat, 0.6
                 break
+    # Жалоба на администратора по тексту похожа на жалобу на игрока. Мягкая подсказка: только когда модель не уверена.
+    if kind == "complaint" and conf < ADMIN_HINT_BELOW and model.is_admin(reported_hash):
+        category, conf = "complaint.admin", ADMIN_HINT_BELOW
     if category is None:
         category = "complaint.other" if kind == "complaint" else "report.question"
     if kind == "report" and category.startswith("complaint."):

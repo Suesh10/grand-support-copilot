@@ -142,3 +142,22 @@ def test_similar_reports_within_an_hour_are_one_problem():
     assert d.is_duplicate(report("застрял в текстурах", reporter="b")) is False  # другой игрок
     assert d.is_duplicate(report("как устроиться в полицию", at="2026-10-30T12:20:00")) is False  # другая проблема
     assert d.is_duplicate(report("застрял в текстурах", at="2026-10-30T14:00:00")) is False  # окно прошло
+
+
+def test_admin_hint_works_only_when_model_is_unsure(monkeypatch):
+    from copilot import classify as clf
+    monkeypatch.setattr(clf.model, "is_admin", lambda h: h == "admin-1")
+    monkeypatch.setattr(clf.model, "predict", lambda kind, text, raw="": ("complaint.dm", 0.5))
+    assert clf.classify("complaint", "выдал мне деморган", True, "", "admin-1")[0] == "complaint.admin"
+    assert clf.classify("complaint", "выдал мне деморган", True, "", "player-1")[0] == "complaint.dm"
+    monkeypatch.setattr(clf.model, "predict", lambda kind, text, raw="": ("complaint.dm", 0.9))
+    assert clf.classify("complaint", "убил у банка", True, "", "admin-1")[0] == "complaint.dm"
+
+
+def test_admins_are_found_by_appeals():
+    from copilot.labels import likely_admins
+    tickets = [{"kind": "complaint", "reported_hash": "a", "verdict": "appeal_rejected"} for _ in range(6)]
+    tickets += [{"kind": "complaint", "reported_hash": "b", "verdict": "appeal_rejected"}, {"kind": "complaint", "reported_hash": "c", "verdict": "approved"}]
+    tickets += [{"kind": "complaint", "reported_hash": "d", "verdict": "appeal_rejected"} for _ in range(5)]
+    tickets += [{"kind": "complaint", "reported_hash": "d", "verdict": "approved"} for _ in range(20)]
+    assert likely_admins(tickets) == {"a"}

@@ -26,7 +26,7 @@ def ticket_to_request(t: dict) -> dict:
         messages[0]["attachments"] = int(t.get("images_count") or 0)
     return {"kind": t.get("kind", "report"), "messages": messages,
             "rule_refs_raw": t.get("rule_refs_raw") or "", "reported_nick": t.get("reported_nick"),
-            "server_lang": t.get("server_lang")}
+            "server_lang": t.get("server_lang"), "reported_hash": t.get("reported_hash")}
 
 
 def open_any(path: str):

@@ -92,7 +92,7 @@ def triage_full(request: dict, verdict_override: str | None = None) -> tuple[dic
     facts = extract(text, attachments, rule_refs_raw)
     if not facts["nickname"] and request.get("reported_nick"):
         facts["nickname"] = request["reported_nick"]
-    category, priority, confidence = clf.classify(kind, text, facts["has_evidence"], rule_refs_raw)
+    category, priority, confidence = clf.classify(kind, text, facts["has_evidence"], rule_refs_raw, request.get("reported_hash"))
     is_duplicate = bool(request.get("is_duplicate"))
     is_spam = is_duplicate or clf.is_empty(text) or category == "report.offtopic"
     if is_duplicate and kind == "complaint" and not verdict_override:

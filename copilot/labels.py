@@ -98,6 +98,18 @@ def verdict_of(ticket: dict) -> str | None:
     return None
 
 
+def likely_admins(tickets, min_appeals: int = 5, min_share: float = 0.5) -> set[str]:
+    """Кого чаще всего оспаривают: администраторов в данных не отметили, но они видны по апелляциям."""
+    appeals: dict[str, int] = {}
+    total: dict[str, int] = {}
+    for t in tickets:
+        target, verdict = t.get("reported_hash"), verdict_of(t) if t.get("kind") == "complaint" else None
+        if target and verdict:
+            total[target] = total.get(target, 0) + 1
+            appeals[target] = appeals.get(target, 0) + verdict.startswith("appeal")
+    return {h for h, n in appeals.items() if n >= min_appeals and n / total[h] >= min_share}
+
+
 def player_text(ticket: dict) -> str:
     return " \n".join(m.get("text", "") for m in ticket.get("messages", []) if m.get("role") == "player")
 
