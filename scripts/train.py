@@ -15,7 +15,7 @@ from sklearn.metrics import accuracy_score, classification_report
 
 sys.path.insert(0, str(__import__("pathlib").Path(__file__).resolve().parent.parent))
 
-from copilot import config, reputation, retrieve  # noqa: E402
+from copilot import clusters, config, reputation, retrieve  # noqa: E402
 from copilot.retrieve import USEFUL_VERDICTS  # noqa: E402
 from copilot.labels import player_text, verdict_of, weak_label  # noqa: E402
 from copilot.model import MODEL_PATH, build_pipeline, model_input  # noqa: E402
@@ -85,6 +85,8 @@ def main() -> None:
     index = retrieve.build()
     joblib.dump(index, retrieve.INDEX_PATH, compress=3)
     print(f"Индекс похожих случаев: {len(index['cases'])} обращений → {retrieve.INDEX_PATH}")
+    retrieve.load.cache_clear()
+    print(f"Предложено шаблонов: {len(clusters.build(tickets))} → {clusters.CANDIDATES_PATH}")
 
 
 if __name__ == "__main__":

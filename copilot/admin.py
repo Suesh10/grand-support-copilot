@@ -4,6 +4,7 @@
 сигнал для будущих версий шаблонов и модели.
 """
 
+import hashlib
 import json
 import os
 import threading
@@ -17,7 +18,7 @@ from fastapi import APIRouter, HTTPException
 from fastapi.responses import FileResponse
 from pydantic import BaseModel, Field
 
-from . import config, learn, llm, reputation, retrieve
+from . import clusters, config, learn, llm, reputation, retrieve
 from .draft import handoff_draft
 from .extract import spans
 from .normalize import normalize
@@ -32,6 +33,9 @@ QUEUE_PATH = os.getenv("COPILOT_QUEUE", str(config.ROOT / "examples" / "sample_t
 FEEDBACK_PATH = config.ARTIFACTS_DIR / "feedback.jsonl"
 ARCHIVE_PATH = config.ARTIFACTS_DIR / "archive.json"
 DELETED_PATH = config.ARTIFACTS_DIR / "deleted_tickets.json"
+DECISIONS_PATH = config.ARTIFACTS_DIR / "template_decisions.json"
+REVIEW_PATH = config.ROOT / "data" / "gold" / "drafts_review.jsonl"
+SCORES_PATH = config.ROOT / "data" / "gold" / "drafts_scores.jsonl"
 RETENTION_DAYS = 30  # через сколько дней сайт предлагает удалить, но сам не удаляет
 PRIORITY_ORDER = {"p0": 0, "p1": 1, "p2": 2, "p3": 3}
 _queue_lock = threading.Lock()  # страница и фоновый прогрев не должны считать очередь дважды
@@ -189,22 +193,26 @@ def api_generate(ticket_id: str, req: GenerateRequest) -> dict:
             "reasons": result["reasons"], "source": meta.get("draft_source"), "llm_error": meta.get("llm_error")}
 
 
+def refreshed(skip: set) -> list[dict]:
+    """Обращения очереди, которые изменил новый урок: админ сразу видит, что сервис учится."""
+    updated = []
+    for t in raw_tickets():
+        if t.get("ticket_id") in skip or t.get("appeal_of"):
+            continue
+        pred, meta = triage_full(ticket_to_request(t))
+        if meta["draft_source"] == "lesson":
+            updated.append({"id": t.get("ticket_id"), "draft": pred["draft_reply"]["text"]})
+    return updated
+
+
 def relearn(fb: Feedback, closed: set) -> list[dict]:
-    """Запомнить правку и сразу обновить похожие обращения в очереди: админ видит, что сервис учится."""
     ticket = next((t for t in raw_tickets() if t.get("ticket_id") == fb.ticket_id), None)
     if ticket is None or not fb.category:
         return []
     item = next((x for x in load_queue() if x["id"] == fb.ticket_id), None)
     lang = item["triage"]["lang"] if item else "ru"
     learn.add(fb.ticket_id, player_text(ticket_to_request(ticket)["messages"]), fb.draft_after, fb.category, lang, fb.nick)
-    updated = []
-    for t in raw_tickets():
-        if t.get("ticket_id") in closed or t.get("ticket_id") == fb.ticket_id or t.get("appeal_of"):
-            continue
-        pred, meta = triage_full(ticket_to_request(t))
-        if meta["draft_source"] == "lesson":
-            updated.append({"id": t.get("ticket_id"), "draft": pred["draft_reply"]["text"]})
-    return updated
+    return refreshed(closed | {fb.ticket_id})
 
 
 @router.post("/api/feedback")
@@ -271,6 +279,99 @@ def api_add_note(note: Note) -> dict:
 def api_delete_note(note_id: int) -> dict:
     reputation.delete_note(note_id)
     return {"ok": True}
+
+
+def read_decisions() -> dict:
+    return json.loads(DECISIONS_PATH.read_text(encoding="utf-8")) if DECISIONS_PATH.exists() else {}
+
+
+@router.get("/api/templates")
+def api_templates() -> dict:
+    """Предложенные шаблоны по кластерам обращений, если они построены (make train)."""
+    path = clusters.CANDIDATES_PATH
+    items = json.loads(path.read_text(encoding="utf-8")) if path.exists() else []
+    decisions = read_decisions()
+    return {"items": [{**x, "decision": decisions.get(str(x["id"]))} for x in items if decisions.get(str(x["id"])) != "rejected"]}
+
+
+class TemplateDecision(BaseModel):
+    decision: Literal["accepted", "rejected"]
+
+
+@router.post("/api/templates/{template_id}")
+def api_template_decision(template_id: int, body: TemplateDecision) -> dict:
+    """Принятый шаблон становится уроком: дальше он идёт теми же проверками, что и правка админа."""
+    path = clusters.CANDIDATES_PATH
+    items = json.loads(path.read_text(encoding="utf-8")) if path.exists() else []
+    item = next((x for x in items if x["id"] == template_id), None)
+    if item is None:
+        raise HTTPException(status_code=404, detail="такого шаблона нет")
+    with _files_lock:
+        decisions = {**read_decisions(), str(template_id): body.decision}
+        DECISIONS_PATH.parent.mkdir(parents=True, exist_ok=True)
+        DECISIONS_PATH.write_text(json.dumps(decisions, ensure_ascii=False), encoding="utf-8")
+    if body.decision == "rejected":
+        return {"ok": True, "learned": []}
+    load_queue()
+    learn.add(f"template-{template_id}", " ".join(item["terms"]), item["reply"], item["category"], item["lang"], None)
+    return {"ok": True, "learned": refreshed({x["ticket_id"] for x in read_archive()})}
+
+
+def read_scores() -> list[dict]:
+    return [json.loads(line) for line in open(SCORES_PATH, encoding="utf-8")] if SCORES_PATH.exists() else []
+
+
+def score_summary(scores: list[dict], review: list[dict]) -> dict:
+    langs = {r["ticket_id"]: r["lang"] for r in review}
+    mean = lambda rows, key: round(sum(r[key] for r in rows) / len(rows), 2) if rows else None  # noqa: E731
+    by_lang = {}
+    for lang in sorted(set(langs.values())):
+        rows = [s for s in scores if langs.get(s["ticket_id"]) == lang]
+        if rows:
+            by_lang[lang] = {"n": len(rows), "draft": mean(rows, "draft_score"), "admin": mean(rows, "admin_score")}
+    return {"n": len(scores), "draft": mean(scores, "draft_score"), "admin": mean(scores, "admin_score"), "by_lang": by_lang}
+
+
+@router.get("/api/review")
+def api_review() -> dict:
+    """Слепая оценка: два ответа в случайном порядке, какой из них написал сервис, видно только после оценки."""
+    if not REVIEW_PATH.exists():
+        return {"available": False}
+    review = [json.loads(line) for line in open(REVIEW_PATH, encoding="utf-8") if line.strip()]
+    scores = read_scores()
+    done = {s["ticket_id"] for s in scores}
+    left = [r for r in review if r["ticket_id"] not in done]
+    item = None
+    if left:
+        r = left[0]
+        draft_first = hash_flip(r["ticket_id"])
+        item = {"ticket_id": r["ticket_id"], "lang": r["lang"], "player": r["player"],
+                "a": r["draft"] if draft_first else r["admin"], "b": r["admin"] if draft_first else r["draft"]}
+    return {"available": True, "total": len(review), "done": len(done & {r["ticket_id"] for r in review}),
+            "item": item, "summary": score_summary(scores, review)}
+
+
+def hash_flip(ticket_id: str) -> bool:
+    return hashlib.sha256(ticket_id.encode("utf-8")).digest()[0] % 2 == 0
+
+
+class ReviewScore(BaseModel):
+    ticket_id: str
+    a: int = Field(ge=1, le=5)
+    b: int = Field(ge=1, le=5)
+    rater: str = ""
+
+
+@router.post("/api/review")
+def api_review_score(body: ReviewScore) -> dict:
+    draft_first = hash_flip(body.ticket_id)
+    row = {"ticket_id": body.ticket_id, "draft_score": body.a if draft_first else body.b,
+           "admin_score": body.b if draft_first else body.a, "rater": body.rater, "ts": int(time.time())}
+    with _files_lock:
+        SCORES_PATH.parent.mkdir(parents=True, exist_ok=True)
+        with open(SCORES_PATH, "a", encoding="utf-8") as f:
+            f.write(json.dumps(row, ensure_ascii=False) + "\n")
+    return {"ok": True, "draft_was": "a" if draft_first else "b"}
 
 
 def latest_report() -> dict | None:

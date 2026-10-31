@@ -178,7 +178,7 @@ def opinion(found: dict, total: int) -> None:
         wishes.append("Хочу, чтобы срок всегда выбирал человек.")
     if count("слишком длинный черновик"):
         dislikes.append(f"{count('слишком длинный черновик')} черновиков длиннее 500 символов: админ это читать не станет.")
-    if not (ROOT / "data" / "gold" / "drafts_scored.csv").exists():
+    if not (ROOT / "data" / "gold" / "drafts_scores.jsonl").exists():
         wishes.append("Хочу увидеть оценки людей: без них за главный критерий на 30% нельзя ручаться.")
     wishes.append("Хочу, чтобы носитель узбекского прочитал шаблоны: они написаны с LLM.")
     print("\nМНЕНИЕ ПРОВЕРЯЮЩЕГО")

@@ -240,6 +240,8 @@ def test_facts_are_marked_in_text():
     marks = {text[m["start"]:m["end"]]: m["kind"] for m in spans(text)}
     assert marks["Arman_Petrov"] == "nick" and marks["видео"] == "proof"
     assert "2.1 ОП" in marks and not any("99.1" in k for k in marks)
+    proof = "вот доказательства"
+    assert [proof[m["start"]:m["end"]] for m in spans(proof) if m["kind"] == "proof"] == ["доказательства"]
 
 
 def test_history_shows_only_counts():
@@ -293,3 +295,43 @@ def test_stats_count_only_what_stayed_closed():
     stats = client.get("/api/stats").json()
     assert stats["sent"] == 1 and stats["edited"] == 0
     assert all(isinstance(n, int) for _, n in stats["open_by_category"])
+
+
+def test_accepted_template_becomes_a_lesson(tmp_path, monkeypatch):
+    from copilot import clusters
+    path = tmp_path / "candidates.json"
+    path.write_text(json.dumps([{"id": 1, "size": 500, "share": 0.1, "category": "report.help", "lang": "ru",
+                                 "terms": ["застрял", "текстуры"], "reply": "Приветствую, вытащу вас через минуту."}], ensure_ascii=False), encoding="utf-8")
+    monkeypatch.setattr(clusters, "CANDIDATES_PATH", path)
+    assert client.get("/api/templates").json()["items"][0]["decision"] is None
+    assert client.post("/api/templates/9", json={"decision": "accepted"}).status_code == 404
+    assert client.post("/api/templates/1", json={"decision": "accepted"}).json()["ok"] is True
+    from copilot import learn
+    assert learn.lessons()[0]["ticket_id"] == "template-1"
+    client.post("/api/templates/1", json={"decision": "rejected"})
+    assert client.get("/api/templates").json()["items"] == []
+
+
+def test_clusters_refuse_unsafe_replies():
+    from copilot.clusters import fits
+    assert fits("Приветствую, спешу на помощь.")
+    assert not fits("Приветствую, вернём вам деньги за донат.")
+    assert not fits("Игрок Arman_Petrov будет наказан.")
+    assert not fits("Мут 30 минут по пункту 99.9 ОП, готово.")
+
+
+def test_blind_review_hides_author_until_scored(tmp_path):
+    review = [{"ticket_id": f"t{i}", "lang": "ru", "player": "текст", "draft": "ЧЕРНОВИК", "admin": "АДМИН"} for i in range(2)]
+    admin.REVIEW_PATH.write_text("\n".join(json.dumps(r, ensure_ascii=False) for r in review), encoding="utf-8")
+    item = client.get("/api/review").json()["item"]
+    assert {item["a"], item["b"]} == {"ЧЕРНОВИК", "АДМИН"} and "source" not in item and "draft" not in item
+    draft_side = "a" if item["a"] == "ЧЕРНОВИК" else "b"
+    saved = client.post("/api/review", json={"ticket_id": item["ticket_id"], "a": 5 if draft_side == "a" else 3, "b": 3 if draft_side == "a" else 5}).json()
+    assert saved["draft_was"] == draft_side
+    data = client.get("/api/review").json()
+    assert data["done"] == 1 and data["summary"]["draft"] == 5 and data["summary"]["admin"] == 3
+    assert client.post("/api/review", json={"ticket_id": "t0", "a": 9, "b": 1}).status_code == 422
+
+
+def test_review_is_hidden_without_local_set():
+    assert client.get("/api/review").json() == {"available": False}

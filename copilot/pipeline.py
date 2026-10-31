@@ -105,13 +105,20 @@ def triage_full(request: dict, verdict_override: str | None = None) -> tuple[dic
 
     meta = {"draft_source": None, "is_duplicate": is_duplicate}
     draft = None
+    # Админ уже исправлял такой ответ: его правка важнее шаблона и догадок модели.
+    lesson = None if verdict_override else learn.find(text, category, lang)
+    if lesson and draft is None:
+        reply = adapt_reply(lesson["reply"], lesson.get("nick"), facts["nickname"])
+        mentioned = parse_refs(reply, default_section="ОП")
+        if all(r in rag.load_points() for r in mentioned):
+            draft, meta["draft_source"] = {"lang": lang, "text": reply, "cited": mentioned}, "lesson"
     # Типовые репорты на русском: частый ответ админов, без LLM и бесплатно.
-    if kind == "report" and category not in ALWAYS_TEMPLATE and lang in ("ru", "und") and not verdict_override:
+    if draft is None and kind == "report" and category not in ALWAYS_TEMPLATE and lang in ("ru", "und") and not verdict_override:
         template = retrieve.report_template(category)
         if template:
             draft, meta["draft_source"] = {"lang": "ru", "text": template, "cited": []}, "template"
     # Репорты на казахском и узбекском: шаблон носителя языка, тоже без LLM.
-    if kind == "report" and lang in templates.BY_LANG and not verdict_override:
+    if draft is None and kind == "report" and lang in templates.BY_LANG and not verdict_override:
         template = templates.get(lang, templates.REPORT_SITUATION.get(category, "senior"))
         if template:
             draft, meta["draft_source"] = {"lang": lang, "text": template, "cited": []}, "template"
@@ -122,13 +129,6 @@ def triage_full(request: dict, verdict_override: str | None = None) -> tuple[dic
     proposed = not verdict_override and facts["has_evidence"] and verdict in PROPOSE_FROM
     refs = rag.candidates(category, verdict, text, facts["rule_refs"])
     allowed = set(refs)
-    # Админ уже исправлял такой ответ: его правка важнее шаблона и догадок модели.
-    lesson = None if verdict_override else learn.find(text, category, lang)
-    if lesson and draft is None:
-        reply = adapt_reply(lesson["reply"], lesson.get("nick"), facts["nickname"])
-        mentioned = parse_refs(reply, default_section="ОП")
-        if all(r in rag.load_points() for r in mentioned):
-            draft, meta["draft_source"] = {"lang": lang, "text": reply, "cited": mentioned}, "lesson"
     if draft is None and llm.enabled():
         examples = templates.style_examples(lang, kind, verdict) + [
             adapt_reply(c["reply"], c.get("reported_nick"), facts["nickname"])
@@ -198,7 +198,7 @@ def triage_full(request: dict, verdict_override: str | None = None) -> tuple[dic
     if guard.has_forbidden_promise(draft["text"]):
         needs_human = True
         reason = "черновик содержит решение, которое подтверждает только администратор"
-        if reason not in reasons:
+        if reason not in reasons and guard.PUNISH_REASON not in reasons:
             reasons.append(reason)
     # Пока решает человек, обращение не закрыто.
     if needs_human:

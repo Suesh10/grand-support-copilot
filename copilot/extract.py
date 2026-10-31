@@ -28,8 +28,14 @@ def extract(text: str, attachments: int = 0, rule_refs_raw: str = "") -> dict:
 def spans(text: str) -> list[dict]:
     """Где в тексте лежат извлечённые факты: их подсвечивает интерфейс админа."""
     found = []
-    for kind, rx in (("nick", NICK_RE), ("proof", EVIDENCE_RE), ("server", SERVER_RE)):
+    for kind, rx in (("nick", NICK_RE), ("server", SERVER_RE)):
         found += [{"start": m.start(), "end": m.end(), "kind": kind} for m in rx.finditer(text)]
+    # «доказ» находит слово, а подсветить нужно его целиком.
+    for m in EVIDENCE_RE.finditer(text):
+        end = m.end()
+        while end < len(text) and text[end].isalpha():
+            end += 1
+        found.append({"start": m.start(), "end": end, "kind": "proof"})
     # Подсвечиваем только настоящие пункты: «99.1» из текста игрока фактом не считается.
     found += [{"start": m.start(), "end": m.end(), "kind": "rule"} for m in REF_RE.finditer(text) if parse_refs(m.group(0))]
     found.sort(key=lambda x: x["start"])
