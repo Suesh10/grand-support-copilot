@@ -231,3 +231,18 @@ def test_llm_outage_is_visible(monkeypatch):
 
 def test_unknown_action_is_rejected():
     assert client.post("/api/feedback", json={"ticket_id": "x", "action": "взломать"}).status_code == 422
+
+
+def test_facts_are_marked_in_text():
+    from copilot.extract import spans
+    text = "Arman_Petrov нарушил 2.1 ОП и 99.1, видео есть, сервер 5"
+    marks = {text[m["start"]:m["end"]]: m["kind"] for m in spans(text)}
+    assert marks["Arman_Petrov"] == "nick" and marks["видео"] == "proof"
+    assert "2.1 ОП" in marks and not any("99.1" in k for k in marks)
+
+
+def test_history_shows_only_counts():
+    item = next(x for x in client.get("/api/queue").json()["items"] if x["id"] == "demo-11")
+    history = item["history"]
+    assert history is None or (history["n"] >= 5 and all(isinstance(n, int) for _, n in history["outcomes"]))
+    assert history is None or set(history) == {"n", "outcomes", "punishment"}  # тексты обращений наружу не выходят

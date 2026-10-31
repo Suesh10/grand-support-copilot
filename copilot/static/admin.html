@@ -41,10 +41,10 @@
   .gutter { padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); }
   .num { font-variant-numeric: tabular-nums; }
   .label { font-size: 13px; font-weight: 600; letter-spacing: .03em; color: var(--muted); }
-  .card { background: var(--paper); border: 1px solid var(--line); border-radius: 4px; padding: 28px; }
+  .card { background: var(--paper); border: 1px solid var(--line); border-radius: 4px; padding: 18px 22px; }
   :focus-visible { outline: 3px solid var(--accent); outline-offset: 2px; }
 
-  .btn { min-height: 56px; display: inline-flex; align-items: center; justify-content: center; gap: 10px; padding: 0 26px; border-radius: 999px; border: 1px solid var(--line); font-weight: 700; background: var(--paper); transition: background-color 120ms, transform 80ms; }
+  .btn { min-height: 48px; display: inline-flex; align-items: center; justify-content: center; gap: 10px; padding: 0 26px; border-radius: 999px; border: 1px solid var(--line); font-weight: 700; background: var(--paper); transition: background-color 120ms, transform 80ms; }
   .btn:hover { background: var(--raised); }
   .btn:active { transform: translateY(1px); }
   .btn-main { background: var(--accent); color: var(--on-accent); border-color: var(--accent); }
@@ -62,9 +62,9 @@
   .sticker:hover { transform: scale(1.06); }
   .sticker[aria-current="true"] { outline: 3px solid var(--accent); outline-offset: 3px; }
 
-  .flow { list-style: none; margin: 0; padding-top: 10px; padding-bottom: 10px; display: flex; flex-wrap: wrap; gap: 6px 22px; font-size: 14px; color: var(--muted); border-bottom: 1px solid var(--line); background: var(--paper); }
+  .flow { list-style: none; margin: 0; padding-top: 5px; padding-bottom: 5px; display: flex; flex-wrap: wrap; gap: 4px 22px; font-size: 13px; color: var(--muted); border-bottom: 1px solid var(--line); background: var(--paper); }
   .flow li { display: flex; align-items: center; gap: 8px; }
-  .flow-n { width: 22px; height: 22px; display: grid; place-items: center; border-radius: 999px; background: var(--accent); color: var(--on-accent); font-size: 13px; font-weight: 700; }
+  .flow-n { width: 20px; height: 20px; display: grid; place-items: center; border-radius: 999px; background: var(--accent); color: var(--on-accent); font-size: 13px; font-weight: 700; }
   .try-row { display: grid; grid-template-columns: 170px minmax(0, 1fr); gap: 12px; }
   .has-tip { position: relative; cursor: help; border-bottom: 1px dotted var(--muted); }
   .tip { display: none; position: absolute; left: 0; top: 100%; z-index: 30; width: 320px; margin-top: 6px; padding: 12px 14px; background: var(--raised); border: 1px solid var(--line); border-radius: 2px; font-family: "Onest", system-ui, sans-serif; font-size: 14px; font-weight: 400; line-height: 1.4; }
@@ -77,9 +77,9 @@
   .fact-row { display: grid; gap: 1px; color: var(--muted); }
   .fact-row b { color: var(--text); font-weight: 700; }
   .fact-note { padding-top: 8px; border-top: 1px solid var(--line); color: var(--text); }
-  .claim { display: grid; grid-template-columns: 150px minmax(0, 1fr); min-height: 150px; background: var(--paper); border: 1px solid var(--line); border-radius: 8px; }
-  .claim-who { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 8px; padding: 16px 10px; background: var(--raised); border-right: 1px solid var(--line); border-bottom: 0; border-radius: 8px 0 0 8px; min-width: 0; }
-  .claim-body { display: flex; flex-direction: column; gap: 10px; min-width: 0; padding: 18px 22px; color: var(--muted); font-size: 15px; }
+  .claim { display: grid; grid-template-columns: 150px minmax(0, 1fr); min-height: 104px; background: var(--paper); border: 1px solid var(--line); border-radius: 8px; }
+  .claim-who { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 6px; padding: 10px; background: var(--raised); border-right: 1px solid var(--line); border-bottom: 0; border-radius: 8px 0 0 8px; min-width: 0; }
+  .claim-body { display: flex; flex-direction: column; gap: 8px; min-width: 0; padding: 12px 18px; color: var(--muted); font-size: 15px; }
   .claim-body b { color: var(--text); font-weight: 700; }
   .claim-text { color: var(--text); line-height: 1.5; overflow-wrap: anywhere; }
   @media (max-width: 767px) { .claim { grid-template-columns: 96px minmax(0, 1fr); } .claim-body { padding: 14px; } }
@@ -91,9 +91,22 @@
   .proof-media { display: block; max-width: 100%; max-height: 80vh; border-radius: 4px; }
   .lightbox .proof-media { width: min(90vw, 960px); max-height: 80vh; object-fit: contain; }
   .lightbox { position: fixed; inset: 0; z-index: 50; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 14px; padding: 16px; background: rgb(0 0 0 / 0.85); }
-  .side-title { color: var(--text); font-size: 24px; font-weight: 700; margin-bottom: -2px; }
-  .msg-nick { max-width: 100%; color: var(--text); font-size: 13px; font-weight: 700; overflow-wrap: anywhere; text-align: center; }
-  .msg-ava { width: 64px; height: 64px; flex: none; display: grid; place-items: center; border-radius: 999px; background: var(--paper); border: 1px solid var(--line); color: var(--text); font-size: 20px; font-weight: 700; }
+  .side-title { color: var(--text); font-size: 20px; font-weight: 700; margin-bottom: -2px; }
+  .fact { padding: 0 3px; border-radius: 3px; background: transparent; color: inherit; font: inherit; }
+  .fact-nick { background: rgb(201 184 240 / .18); }
+  .fact-rule { background: rgb(224 180 20 / .2); cursor: pointer; text-decoration: underline; }
+  .fact-proof { background: rgb(95 207 154 / .16); }
+  .fact-server { background: rgb(125 183 240 / .18); }
+  .reason { display: flex; gap: 8px; font-size: 15px; line-height: 1.4; color: var(--muted); }
+  .reason b { color: var(--warn); font-weight: 700; }
+  .forecast { display: inline-flex; flex-wrap: wrap; align-items: center; gap: 4px 8px; margin-bottom: 8px; padding: 4px 10px; border: 1px solid var(--accent); border-radius: 6px; font-size: 14px; }
+  .forecast b { color: var(--accent); }
+  .hist { display: flex; height: 10px; margin: 6px 0; border-radius: 999px; overflow: hidden; background: var(--raised); }
+  .hist i { display: block; height: 100%; }
+  .status { display: inline-flex; align-items: center; gap: 6px; font-size: 13px; color: var(--muted); white-space: nowrap; }
+  .status i { width: 8px; height: 8px; border-radius: 999px; }
+  .msg-nick { max-width: 100%; color: var(--text); font-size: 12px; font-weight: 700; overflow-wrap: anywhere; text-align: center; }
+  .msg-ava { width: 52px; height: 52px; flex: none; display: grid; place-items: center; border-radius: 999px; background: var(--paper); border: 1px solid var(--line); color: var(--text); font-size: 17px; font-weight: 700; }
   .msg-ava-own { background: var(--accent); border-color: var(--accent); color: var(--on-accent); }
   .field { width: 100%; min-height: 44px; margin-top: 4px; padding: 0 12px; background: var(--raised); color: var(--text); border: 1px solid var(--line); border-radius: 2px; }
   .form-grid label { display: block; font-size: 14px; font-weight: 600; color: var(--muted); }
@@ -122,7 +135,7 @@
   .nudge { animation: nudge 240ms ease-out; }
   @keyframes nudge { 25% { transform: translateX(-4px); } 75% { transform: translateX(4px); } }
 
-  textarea.draft { width: 100%; resize: none; overflow: hidden; background: transparent; color: var(--text); padding: 0; border: 0; font-size: 19px; line-height: 1.6; }
+  textarea.draft { width: 100%; resize: none; overflow: hidden; background: transparent; color: var(--text); padding: 0; border: 0; font-size: 18px; line-height: 1.5; }
   .draft-card.editing { border-color: var(--accent); }
 
   @media (min-width: 760px) {
@@ -155,7 +168,7 @@ const html = htm.bind(React.createElement);
 const { Send, Pencil, ArrowUpRight, Check, ShieldCheck, Languages, UserRound, Combine, Undo2, ChevronDown, Bot, Paperclip, TriangleAlert, Menu, X, Sparkles } = LucideReact;
 
 /* Живые данные: очередь и правила приходят из API сервиса (GET /api/queue), здесь нет вшитых обращений. */
-let TICKETS = [], AUTO = [], AUTO_TOTAL = 0, TOTAL_P0 = 0, NOTES = [];
+let TICKETS = [], AUTO = [], AUTO_TOTAL = 0, NOTES = [], LLM = { state: "off" }, ACCURACY = {};
 const RULES = {};
 const SLOT = { ru: "[наказание]", kk: "[жаза]", uz: "[jazo]" };
 const PUNISH_WORD = { ru: "Наказание", kk: "Жаза", uz: "Jazo" };
@@ -198,18 +211,19 @@ function toTicket(x) {
     facts: { nick, refs: tr.extracted.rule_refs.join(", ") || "нет", proof: proofs },
     ref: rule ? rule.ref : null, chips: chips.length ? chips : null,
     draft: tr.draft_reply.text, original: tr.draft_reply.text, human: tr.reasons,
-    series: x.series > 1 ? nick : null, profiles: x.profiles || {},
+    series: x.series > 1 ? nick : null, profiles: x.profiles || {}, proposal: x.proposal, history: x.history,
   };
 }
 
 async function loadQueue() {
   const data = await fetch("/api/queue").then((r) => r.json());
   NOTES = data.notes || [];
+  LLM = data.llm;
+  ACCURACY = data.proposal_accuracy || {};
   const all = data.items.map((x) => ({ x, t: toTicket(x) }));
   TICKETS = all.filter((a) => !a.x.auto).map((a) => a.t);
   AUTO = all.filter((a) => a.x.auto).map(({ t }) => ({ id: t.id, text: t.text, lang: t.lang, reply: t.draft, ticket: t }));
   AUTO_TOTAL = AUTO.length;
-  TOTAL_P0 = TICKETS.filter((t) => t.p === 0).length;
 }
 
 
@@ -217,6 +231,12 @@ const TRY_VIEW = "__try";
 const NOTES_VIEW = "__notes";
 const ARCHIVE_VIEW = "__archive";
 const reviewTime = (sec) => (sec == null ? "нет данных" : sec < 60 ? sec + " с" : Math.round(sec / 60) + " мин");
+const OUTCOMES = {
+  approved: ["одобрено", "var(--ok)"], need_evidence: ["мало доказательств", "var(--p1)"], rejected: ["нарушения нет", "var(--p3)"],
+  invalid_format: ["оформлено неверно", "var(--muted)"], duplicate: ["дубль", "var(--muted)"], already_punished: ["уже наказан", "var(--p2)"],
+  appeal_rejected: ["наказание верно", "var(--p3)"], appeal_approved: ["наказание снято", "var(--ok)"],
+};
+const FORECAST = { approved: "одобрить", need_evidence: "мало доказательств", appeal_rejected: "наказание верно" };
 const TYPE_NAMES = {
   "complaint.insult": "Оскорбления", "complaint.cheat": "Читы", "complaint.dm": "Убийство без повода", "complaint.scam": "Обман",
   "complaint.rmt_ads": "Реклама и продажа", "complaint.admin": "Апелляции и админы", "complaint.other": "Другие жалобы", "complaint.invalid": "Неоформленные",
@@ -252,14 +272,26 @@ const Bar = ({ value, total }) => html`<div class="bar"><i style=${{ width: (tot
 function Logo() {
   const [failed, setFailed] = useState(false);
   if (failed) return html`<span class="font-display text-[20px] font-bold leading-none">Grand Mobile</span>`;
-  return html`<img src="logo.png" alt="Grand Mobile" class="h-11 w-auto mix-blend-lighten" onError=${() => setFailed(true)} />`;
+  return html`<img src="logo.png" alt="Grand Mobile" class="h-9 w-auto mix-blend-lighten" onError=${() => setFailed(true)} />`;
+}
+
+/* Сбой ИИ не должен быть незаметным: черновики тогда шаблонные, и админ об этом знает. */
+function AiStatus() {
+  const [llm, setLlm] = useState(LLM);
+  useEffect(() => {
+    const id = setInterval(() => fetch("/health").then((r) => r.json()).then((h) => setLlm(h.llm)).catch(() => setLlm({ state: "down" })), 30000);
+    return () => clearInterval(id);
+  }, []);
+  const [color, text] = { ok: ["var(--ok)", "ИИ работает"], down: ["var(--warn)", "ИИ недоступен: черновики без него"], off: ["var(--muted)", "Без ИИ: нет ключа"] }[llm.state] || ["var(--muted)", "ИИ: нет данных"];
+  return html`<span class="status" title=${llm.last_error || ""}><i style=${{ background: color }}></i>${text}</span>`;
 }
 
 function Header({ s, onMenu }) {
   const closed = s.sent + s.escalated;
-  return html`<header class="gutter bg-[var(--header)] border-b border-[var(--line)] py-4 flex flex-wrap items-center gap-x-6 gap-y-2">
+  return html`<header class="gutter bg-[var(--header)] border-b border-[var(--line)] py-2 flex flex-wrap items-center gap-x-6 gap-y-1">
     <${Logo} />
     <p class="flex-1 min-w-[240px] text-[15px]"><b>Support Copilot.</b> ИИ сортирует обращения и готовит ответ по правилам, решение всегда за админом.</p>
+    <${AiStatus} />
     <div class="flex items-center gap-3">
       <span class="num font-semibold text-[15px]">${closed} из ${TICKETS.length}</span>
       <div class="w-[120px]"><${Bar} value=${closed} total=${TICKETS.length} /></div>
@@ -360,17 +392,7 @@ function GroupView({ g, onPick, onBack }) {
   </div>`;
 }
 
-function Goal({ title, value, total, done, onClick, hint }) {
-  return html`<button type="button" onClick=${onClick} aria-pressed=${done} class="w-full min-h-[52px] text-left rounded-[2px] px-3 py-2 hover:bg-[var(--raised)]">
-    <span class="flex items-center justify-between gap-2 text-[15px]">
-      <span class=${"truncate " + (done ? "font-bold" : "")}>${title}</span>
-      ${done ? html`<${Check} size=${18} class="flex-none" />` : html`<span class="num font-code text-xs text-mute flex-none">${hint}</span>`}
-    </span>
-    <span class="block mt-1"><${Bar} value=${value} total=${total} /></span>
-  </button>`;
-}
-
-function Drawer({ s, activeId, goals, autoOpen, onAuto, onCheck, onPick, onClose }) {
+function Drawer({ s, activeId, autoOpen, onAuto, onCheck, onPick, onClose }) {
   return html`<aside class="drawer enter fixed top-0 bottom-0 z-20 bg-[var(--paper)] border-r border-[var(--line)] overflow-y-auto p-5 grid gap-6 content-start">
     <div class="flex items-center justify-between">
       <h2 class="font-display text-lg font-bold">Очередь</h2>
@@ -403,10 +425,6 @@ function Drawer({ s, activeId, goals, autoOpen, onAuto, onCheck, onPick, onClose
         })}
       </ul>`}
     </div>
-    <div>
-      <h2 class="font-display text-lg font-bold mb-2">Цели смены</h2>
-      ${goals.map((g) => html`<${Goal} key=${g.id} ...${g} />`)}
-    </div>
   </aside>`;
 }
 
@@ -420,24 +438,52 @@ function Translation({ text, stale }) {
   </div>`;
 }
 
-/* Что сделал ИИ: одна строка из наклеек, последняя называет, кто решает. */
-function Trace({ t }) {
+/* Что сделал ИИ: одна строка из наклеек, вид обращения можно сменить здесь же. */
+function Trace({ t, onType }) {
   const low = t.conf < LOW_CONF;
-  return html`<div aria-label="Что сделал ИИ" class="flex flex-wrap gap-2">
+  return html`<div aria-label="Что сделал ИИ" class="flex flex-wrap items-center gap-2">
     <span class="pill">Язык ${LANG[t.lang]}</span>
-    <span class="pill font-code">${t.cat}</span>
-    <span class=${"pill" + (low ? " pill-low" : "")}>${confText(t.conf)}</span>
+    <select aria-label="Вид обращения, решает админ" title=${t.cat} class="pill" value=${t.cat} onChange=${(e) => onType(e.target.value)}>
+      ${Object.entries(TYPE_NAMES).filter(([code]) => code.startsWith(t.kind + ".")).map(([code, name]) => html`<option key=${code} value=${code}>${name}</option>`)}
+    </select>
+    <span class=${"pill" + (low ? " pill-low" : "")} title="На ручной разметке: ниже 0,7 верно 45%, до 0,85 верно 78%, выше верно 92%">${confText(t.conf)}</span>
     ${t.facts.nick && !t.appealOf && html`<span class="pill">На ${t.facts.nick}</span>`}
-    <span class="pill">${t.facts.proof === "Нет" ? "Без доказательств" : t.facts.proof}</span>
     <span class="pill pill-final">${t.human.length ? "Решает админ" : "Можно отправлять"}</span>
   </div>`;
+}
+
+/* Факты подсвечены прямо в тексте игрока: админ видит их сразу и может открыть пункт правил. */
+const FACT_TITLES = { nick: "Ник", rule: "Пункт правил: нажмите, чтобы открыть", proof: "Упоминание доказательств", server: "Сервер" };
+function Marked({ text, spans, onRule }) {
+  const parts = [];
+  let at = 0;
+  (spans || []).forEach((m, i) => {
+    if (m.start > at) parts.push(text.slice(at, m.start));
+    const piece = text.slice(m.start, m.end);
+    parts.push(m.kind === "rule"
+      ? html`<button key=${i} type="button" class="fact fact-rule" title=${FACT_TITLES.rule} onClick=${onRule}>${piece}</button>`
+      : html`<mark key=${i} class=${"fact fact-" + m.kind} title=${FACT_TITLES[m.kind]}>${piece}</mark>`);
+    at = m.end;
+  });
+  parts.push(text.slice(at));
+  return parts;
+}
+
+/* Как решали похожие жалобы: только счётчики из истории, без текстов обращений. */
+function History({ h }) {
+  if (!h) return null;
+  return html`<section class="card" aria-label="Как решали похожие жалобы">
+    <h3 class="label">Как решали ${h.n} похожих жалоб</h3>
+    <div class="hist">${h.outcomes.map(([code, n]) => html`<i key=${code} style=${{ width: (n / h.n) * 100 + "%", background: (OUTCOMES[code] || [])[1] }} title=${(OUTCOMES[code] || [code])[0]}></i>`)}</div>
+    <p class="text-[15px] text-mute">${h.outcomes.map(([code, n]) => (OUTCOMES[code] || [code])[0] + " " + n).join(" · ")}${h.punishment ? ". Чаще всего: " + h.punishment : ""}</p>
+  </section>`;
 }
 
 function Rule({ t, onChip, nudge, ruleOpen, onToggle }) {
   const rule = t.ref && RULES[t.ref];
   if (!rule) return null;
   let n = 0;
-  return html`<section class="card">
+  return html`<section class="card" id="rule">
     <div class="flex flex-wrap items-center gap-3">
       <h3 class="font-display text-[20px] font-bold">${t.ref}</h3>
       <span class="pill" style=${{ color: "var(--ok)" }}><${ShieldCheck} size=${16} /> Проверен по базе</span>
@@ -606,20 +652,18 @@ function NotesView({ notes, onAdd, onDelete, onBack }) {
   </div>`;
 }
 
-function Ticket({ t, editing, generating, onGenerate, onType, seriesCount, nudge, ruleOpen, onToggleRule, onDraft, onEdit, onStopEdit, onSend, onEsc, onChip, onMerge, areaRef }) {
+function Ticket({ t, editing, generating, onGenerate, onType, seriesCount, nudge, ruleOpen, onToggleRule, onDraft, onEdit, onStopEdit, onSend, onEsc, onChip, onMerge, onOpenRule, areaRef }) {
   const needsPunish = t.draft.includes(SLOT[t.lang]);
   const shown = t.appealOf ? t.msgs : t.msgs.filter((m) => m.role !== "reported_player");  /* ответ обвиняемого живёт в апелляциях */
   useLayoutEffect(() => {
     const el = areaRef.current;
     if (el) { el.style.height = "auto"; el.style.height = el.scrollHeight + "px"; }
   }, [t.draft, t.id]);
-  return html`<div class="enter gutter ticket max-w-[880px] mx-auto py-8 grid gap-6 min-w-0" key=${t.id}>
-    <div class="grid gap-3">
-      <div class="flex flex-wrap items-center gap-3">
-        <${Badge} p=${t.p} />
-        <span class="text-sm text-mute"><span class="font-code">#${t.id}</span> · ${t.server}</span>
-      </div>
-      <h2 class="font-display text-[30px] font-bold leading-tight break-words">${t.appealOf ? `Апелляция по жалобе ${t.appealOf}` : `${t.kind === "complaint" ? "Жалоба" : "Репорт"}: ${(TYPE_NAMES[t.cat] || "обращение").toLowerCase()}`}</h2>
+  return html`<div class="enter gutter ticket max-w-[880px] mx-auto py-3 grid gap-3 min-w-0" key=${t.id}>
+    <div class="flex flex-wrap items-center gap-x-3 gap-y-1">
+      <${Badge} p=${t.p} />
+      <h2 class="font-display text-[26px] font-bold leading-tight break-words">${t.appealOf ? `Апелляция по жалобе ${t.appealOf}` : `${t.kind === "complaint" ? "Жалоба" : "Репорт"}: ${(TYPE_NAMES[t.cat] || "обращение").toLowerCase()}`}</h2>
+      <span class="ml-auto text-sm text-mute"><span class="font-code">#${t.id}</span> · ${t.server}</span>
     </div>
     ${seriesCount > 0 && html`<div class="flex flex-wrap items-center gap-3 rounded-[2px] border border-[var(--line)] bg-[var(--paper)] px-5 py-3">
       <${Combine} size=${20} class="flex-none" />
@@ -630,48 +674,31 @@ function Ticket({ t, editing, generating, onGenerate, onType, seriesCount, nudge
     <div class="grid gap-2">
     <h3 class="side-title">${t.appealOf ? "Игрок" : "Заявитель"}</h3>
     <${Box} nick=${t.appealOf ? t.facts.nick : t.reporterNick} letter=${t.appealOf ? "И" : "З"} own p=${t.appealOf ? t.profiles.reported : t.profiles.reporter}>
-      ${shown.map((m, i) => html`<p key=${i} class="claim-text" style=${{ fontSize: textSize(m.text) }}>${m.text}</p>`)}
+      ${shown.map((m, i) => html`<p key=${i} class="claim-text" style=${{ fontSize: textSize(m.text) }}><${Marked} text=${m.text} spans=${m.spans} onRule=${onOpenRule} /></p>`)}
       ${(t.textRu || NEEDS_RU.includes(t.lang)) && html`<${Translation} text=${t.textRu || NO_RU} />`}
       ${t.facts.proof !== "Нет" && !t.images && !t.attachments.length && html`<p class="mt-3 flex items-center gap-2 text-[15px] text-mute"><${Paperclip} size=${16} /> ${t.facts.proof}</p>`}
       <${Proofs} files=${t.attachments} images=${t.images} />
     <//>
     </div>
-    <${Trace} t=${t} />
-    <div class="flex flex-wrap items-center gap-3">
-      <label for="ticketType" class="label">Вид обращения, решает админ</label>
-      <select id="ticketType" class="pill" value=${t.cat} onChange=${(e) => onType(e.target.value)}>
-        ${Object.entries(TYPE_NAMES).filter(([code]) => code.startsWith(t.kind + ".")).map(([code, name]) => html`<option key=${code} value=${code}>${name}</option>`)}
-      </select>
-    </div>
+    <${Trace} t=${t} onType=${onType} />
     ${!t.appealOf && t.msgs.some((m) => m.role === "reported_player") && html`<p class="text-[15px] text-mute">По этой жалобе есть апелляция: она во вкладке «Апелляции и админы».</p>`}
+    ${t.human.length > 0 && html`<p class="reason"><${UserRound} size=${18} class="flex-none mt-[2px]" /><span class="min-w-0"><b>Нужен человек: </b>${t.human.join("; ")}.</span></p>`}
     <section class=${"card draft-card" + (editing ? " editing" : "")}>
-      <label for="draft" class="label block mb-2">Черновик ответа, ${LANG[t.lang]}${editing ? " · Ctrl+Enter отправить, Esc выйти" : ""}</label>
+      <label for="draft" class="label block mb-1">Черновик ответа, ${LANG[t.lang]}${editing ? " · Ctrl+Enter отправить, Esc выйти" : ""}</label>
+      ${t.proposal && html`<p class="forecast"><span>Прогноз ИИ: <b>${FORECAST[t.proposal]}</b></span>${ACCURACY[t.proposal] && html`<span class="text-mute">верно в ${ACCURACY[t.proposal]} проверенных случаев</span>`}<span class="text-mute">Вложений ИИ не видит</span></p>`}
       <textarea id="draft" ref=${areaRef} class="draft" rows="2" readOnly=${!editing} value=${t.draft} onChange=${(e) => onDraft(e.target.value)} onClick=${onEdit} onBlur=${onStopEdit}></textarea>
       ${(t.draftRu || NEEDS_RU.includes(t.lang)) && html`<${Translation} text=${t.draftRu || NO_RU} stale=${t.draftRu && t.edited} />`}
       ${needsPunish && html`<p class="mt-3 inline-flex items-center gap-2 rounded-[2px] border border-[var(--line)] text-warnt px-4 py-2 text-[15px] font-semibold"><${TriangleAlert} size=${16} class="flex-none" /> Выберите наказание ниже или впишите своё</p>`}
     </section>
+    <${History} h=${t.history} />
     <${Generate} t=${t} generating=${generating} onGenerate=${onGenerate} />
     <${Rule} t=${t} onChip=${onChip} nudge=${nudge} ruleOpen=${ruleOpen} onToggle=${onToggleRule} />
-    ${t.human.length > 0 && html`<p class="flex gap-3 px-1">
-      <${UserRound} size=${20} class="flex-none mt-[3px]" />
-      <span class="min-w-0"><b>Нужен человек: </b><span class="text-mute">${t.human.join("; ")}.</span></span>
-    </p>`}
-    <div class="sticky bottom-0 py-3 flex flex-wrap gap-3 z-10 bg-sky">
-      <button type="button" class="btn btn-main flex-1 min-w-[200px]" onClick=${onSend}><${Send} size=${20} /> Отправить <span class="key">Enter</span></button>
+    <div class="sticky bottom-0 py-2 flex flex-wrap gap-3 z-10 bg-sky">
+      <button type="button" class="btn btn-main flex-1 min-w-[200px]" onClick=${onSend}><${Send} size=${20} /> ${t.armed ? "Доказательства проверены, отправить" : "Отправить"} <span class="key">Enter</span></button>
       <button type="button" class="btn" onClick=${onEdit}><${Pencil} size=${20} /> Править <span class="key">E</span></button>
       <button type="button" class="btn btn-danger" onClick=${onEsc}><${ArrowUpRight} size=${20} /> Эскалировать <span class="key">X</span></button>
     </div>
-    <${Numbers} />
   </div>`;
-}
-
-function Numbers() {
-  const items = [["1,29 с", "p95 подготовки ответа", "var(--p3)"], ["$0,0004", "за обращение", "var(--ok)"], ["0", "выдуманных цитат", "var(--p1)"], ["RU KK UZ", "языки игроков", "var(--p2)"]];
-  return html`<dl class="grid grid-cols-2 lg:grid-cols-4 gap-3 pt-4">
-    ${items.map(([v, l]) => html`<div key=${l} class="rounded-[2px] border border-[var(--line)] p-4 bg-[var(--paper)]">
-      <dd class="font-display text-[20px] font-bold leading-tight num">${v}</dd><dt class="text-sm text-mute mt-1">${l}</dt>
-    </div>`)}
-  </dl>`;
 }
 
 function Cleared({ s, onUndo, canUndo }) {
@@ -679,7 +706,6 @@ function Cleared({ s, onUndo, canUndo }) {
     <h2 class="font-display text-4xl font-bold">Очередь закрыта</h2>
     <p class="text-mute text-lg">Отправлено ${s.sent}, передано администрации ${s.escalated}, автоматически ${AUTO_TOTAL}. Решения по наказаниям принимал админ.</p>
     ${canUndo && html`<button type="button" class="btn" onClick=${onUndo}><${Undo2} size=${20} /> Вернуть последний</button>`}
-    <div class="w-full text-left"><${Numbers} /></div>
   </div>`;
 }
 
@@ -733,18 +759,7 @@ function App() {
   const areaRef = useRef(null);
 
   const active = s.tickets.find((t) => t.id === activeId) || null;
-  const openP0 = s.tickets.filter((t) => t.p === 0).length;
   const seriesCount = active && active.series ? s.tickets.filter((t) => t.series === active.series && t.id !== active.id).length : 0;
-
-  const goToP0 = () => { const b = s.tickets.find((t) => t.p === 0); if (b) { setActiveId(b.id); setDrawer(false); } };
-  const goals = useMemo(() => {
-    const closed = TOTAL_P0 - openP0;
-    return [
-      { id: "p0", title: "Закрыть все P0", value: closed, total: TOTAL_P0, done: openP0 === 0, hint: `${closed}/${TOTAL_P0}`, onClick: goToP0 },
-      { id: "clean", title: "5 ответов без правок", value: Math.min(s.clean, 5), total: 5, done: s.clean >= 5, hint: `${Math.min(s.clean, 5)}/5`, onClick: () => {} },
-      { id: "auto", title: "Проверить 3 автоответа", value: s.autoChecked.length, total: 3, done: s.autoChecked.length >= 3, hint: `${s.autoChecked.length}/3`, onClick: () => setAutoOpen(true) },
-    ];
-  }, [s, openP0]);
 
   const act = (msg, change) => {
     setToast({ msg, snap: { s, activeId }, left: 5, key: Date.now() });
@@ -763,6 +778,8 @@ function App() {
   const send = () => {
     if (!active) return;
     if (active.draft.includes(SLOT[active.lang])) { setNudge((n) => n + 1); return; }
+    // Решение предложила модель, а вложений она не видит: одно случайное нажатие его не отправит.
+    if (active.proposal && !active.armed) { patchActive((t) => ({ ...t, armed: true })); return; }
     log(active, "send");
     const next = leave(active, { sent: s.sent + 1, clean: s.clean + (active.edited ? 0 : 1) });
     act("Отправлено", () => next);
@@ -814,7 +831,7 @@ function App() {
     try {
       const r = await postJson("/api/generate/" + encodeURIComponent(id), { verdict }).then((x) => x.json());
       const offline = r.source !== "llm";
-      patchTicket(id, (t) => ({ ...t, draft: r.draft_reply.text, draftRu: null, edited: false, chip: null, chipData: null, verdict,
+      patchTicket(id, (t) => ({ ...t, draft: r.draft_reply.text, draftRu: null, edited: false, chip: null, chipData: null, verdict, proposal: null,
         human: r.reasons, genNote: offline ? "ИИ недоступен: черновик собран из похожего случая." : "Черновик от ИИ, цитаты проверены. Можно править." }));
       if (lang === "kk" || lang === "uz") {
         const ru = await translate(r.draft_reply.text);
@@ -901,11 +918,12 @@ function App() {
         ${groupOpen === TRY_VIEW ? html`<${TryView} onBack=${() => setGroupOpen(null)} />` : groupOpen === ARCHIVE_VIEW ? html`<${ArchiveView} onBack=${() => setGroupOpen(null)} />` : groupOpen === NOTES_VIEW ? html`<${NotesView} notes=${notes} onAdd=${addNote} onDelete=${deleteNote} onBack=${() => setGroupOpen(null)} />` : group ? html`<${GroupView} g=${group} onPick=${pick} onBack=${() => setGroupOpen(null)} />` : active
           ? html`<${Ticket} t=${active} editing=${editing} generating=${generating} onGenerate=${generate} onType=${(cat) => patchActive((t) => ({ ...t, cat }))} seriesCount=${seriesCount} nudge=${nudge} areaRef=${areaRef} ruleOpen=${ruleOpen} onToggleRule=${() => setRuleOpen(!ruleOpen)}
               onDraft=${(v) => patchActive((t) => ({ ...t, draft: v, edited: true }))} onEdit=${edit} onStopEdit=${() => setEditing(false)}
-              onSend=${send} onEsc=${escalate} onChip=${applyChip} onMerge=${merge} />`
+              onSend=${send} onEsc=${escalate} onChip=${applyChip} onMerge=${merge}
+              onOpenRule=${() => { setRuleOpen(true); document.getElementById("rule")?.scrollIntoView({ behavior: "smooth", block: "center" }); }} />`
           : html`<${Cleared} s=${s} onUndo=${undo} canUndo=${!!toast} />`}
       </main>
     </div>
-    ${drawer && html`<${Drawer} s=${s} activeId=${activeId} goals=${goals} autoOpen=${autoOpen} onAuto=${() => setAutoOpen(!autoOpen)} onCheck=${checkAuto} onPick=${pick} onClose=${() => setDrawer(false)} />`}
+    ${drawer && html`<${Drawer} s=${s} activeId=${activeId} autoOpen=${autoOpen} onAuto=${() => setAutoOpen(!autoOpen)} onCheck=${checkAuto} onPick=${pick} onClose=${() => setDrawer(false)} />`}
     ${toast && html`<${Toast} key=${toast.key} toast=${toast} onUndo=${undo} />`}
   </div>`;
 }

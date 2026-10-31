@@ -8,6 +8,7 @@
 import gzip
 import json
 import re
+from collections import Counter
 from functools import lru_cache
 
 import joblib
@@ -19,6 +20,8 @@ from .labels import KNOWN_VERDICTS as USEFUL_VERDICTS, verdict_of
 from .normalize import normalize
 
 INDEX_PATH = config.ARTIFACTS_DIR / "cases.joblib"
+MIN_SIMILAR = 0.08  # ниже этого обращения похожи только общими словами
+MIN_HISTORY = 5  # по меньшему числу случаев выводов не делаем
 NICK_RE = re.compile(r"\b[A-Z][a-z]+_[A-Z][a-z]+\d{0,3}\b")
 
 
@@ -57,7 +60,7 @@ def build(max_reports: int = 30000) -> dict:
 
 def report_templates(top: int = 3) -> dict[str, list[tuple[str, int]]]:
     """Самые частые ответы админов на репорты каждой категории (кластеры шаблонов)."""
-    from collections import Counter, defaultdict
+    from collections import defaultdict
 
     from .labels import weak_label
 
@@ -109,3 +112,15 @@ def similar(kind: str, text: str, k: int = 3, verdict: str | None = None, lang: 
         return out
 
     return pick(require_lang=True) or pick(require_lang=False)
+
+
+def history(text: str, k: int = 20) -> dict | None:
+    """Как решали похожие жалобы. Только счётчики: тексты обращений наружу не выходят."""
+    cases = [c for c in similar("complaint", text, k=k) if c["score"] >= MIN_SIMILAR and c["verdict"]]
+    if len(cases) < MIN_HISTORY:
+        return None
+    terms = Counter((c.get("punishment") or "").strip().lower() for c in cases if c["verdict"] == "approved")
+    terms.pop("", None)
+    term, count = terms.most_common(1)[0] if terms else (None, 0)
+    return {"n": len(cases), "outcomes": Counter(c["verdict"] for c in cases).most_common(),
+            "punishment": term if count >= 2 and len(term) <= 40 else None}

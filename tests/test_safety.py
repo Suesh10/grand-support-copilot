@@ -201,12 +201,27 @@ def test_weak_outcomes_are_never_claimed(monkeypatch, verdict):
     from copilot import pipeline
     _, fake = with_verdict(verdict, 0.95)
     monkeypatch.setattr(pipeline.model, "predict", fake)
+    monkeypatch.setattr(pipeline.retrieve, "history", lambda text: None)
     resp, meta = pipeline.triage_full({"kind": "complaint", "reported_nick": "Arman_Petrov",
                                        "messages": [{"text": "оскорбил меня в чате", "attachments": 2}]})
     text = resp["draft_reply"]["text"].lower()
     assert "отклонен" not in text and "неверно" not in text and "снят" not in text
     assert "Arman_Petrov" in resp["draft_reply"]["text"]  # не общая отписка, а ответ про этот случай
     assert resp["needs_human"] is True and "proposal" not in meta
+
+
+@pytest.mark.parametrize("outcomes,expected", [
+    ([("approved", 15), ("rejected", 5)], "approved"),  # большинство 75%
+    ([("approved", 11), ("rejected", 9)], None),  # большинство слабое
+    ([("rejected", 18), ("approved", 2)], None),  # отказ сам не предлагаем
+])
+def test_similar_cases_can_propose_when_model_is_unsure(monkeypatch, outcomes, expected):
+    from copilot import pipeline
+    _, fake = with_verdict("rejected", 0.3)
+    monkeypatch.setattr(pipeline.model, "predict", fake)
+    monkeypatch.setattr(pipeline.retrieve, "history", lambda text: {"n": 20, "outcomes": outcomes, "punishment": None})
+    _, meta = pipeline.triage_full({"kind": "complaint", "messages": [{"text": "оскорбил меня в чате", "attachments": 2}]})
+    assert meta.get("proposal") == expected
 
 
 def test_appeal_is_proposed_only_as_rejected(monkeypatch):

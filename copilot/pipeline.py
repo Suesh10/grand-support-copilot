@@ -21,6 +21,9 @@ UNDER_REVIEW = "under_review"
 # «оформлена неверно» с точностью около 30% и выбрасывала «одобрено» с точностью 85%. Остальные исходы
 # модель угадывает плохо, поэтому сама их не предлагает, их выбирает админ.
 PROPOSE_FROM = {"approved": 0.4, "need_evidence": 0.6, "appeal_rejected": 0.6}
+# Голосование похожих случаев видит то, чего не видит модель по тексту: при таком большинстве оно верно в 80% и выше.
+# Для апелляций не работает: там точность 62%, поэтому их предлагает только модель.
+HISTORY_FROM = {"approved": 0.7, "need_evidence": 0.7}
 PROPOSAL_REASON = "исход предложен моделью, вложений она не видит: проверьте доказательства"
 EMPTY_COMPLAINT = 15  # символов: короче этого в жалобе нет описания
 LOW_CONFIDENCE = 0.5  # на ручной разметке ниже этой уверенности категория верна меньше чем в половине случаев
@@ -57,8 +60,15 @@ def likely_verdict(kind: str, category: str, text: str, rule_refs_raw: str, has_
     # Пустая жалоба («жб», «вот он») не оформлена, сколько бы вложений ни было.
     if category == "complaint.invalid" and len(text) < EMPTY_COMPLAINT:
         return "invalid_format"
+    if confidence >= PROPOSE_FROM.get(verdict, 2.0):
+        return verdict
+    history = retrieve.history(text)
+    if history:
+        top, count = history["outcomes"][0]
+        if count / history["n"] >= HISTORY_FROM.get(top, 2.0):
+            return top
     # Вложений сервис не видит: без уверенности не утверждаем исход, а говорим, что жалоба на проверке.
-    return verdict if confidence >= PROPOSE_FROM.get(verdict, 2.0) else UNDER_REVIEW
+    return UNDER_REVIEW
 
 
 def player_text(messages: list[dict]) -> str:

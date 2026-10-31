@@ -17,10 +17,11 @@ from fastapi import APIRouter, HTTPException
 from fastapi.responses import FileResponse
 from pydantic import BaseModel, Field
 
-from . import config, llm, reputation
+from . import config, llm, reputation, retrieve
 from .draft import handoff_draft
+from .extract import spans
 from .normalize import normalize
-from .pipeline import triage_full
+from .pipeline import player_text, triage_full
 from .predict import open_any, ticket_to_request
 from .rules import load_points, punishments
 
@@ -48,7 +49,7 @@ def rule_card(ref: str) -> dict | None:
 
 def appeal_from(t: dict) -> dict | None:
     """Ответ обвиняемого в жалобе идёт отдельным обращением во вкладку апелляций."""
-    replies = [m for m in t.get("messages", []) if m.get("role") == "reported_player"]
+    replies = [m for m in t.get("messages") or [] if m.get("role") == "reported_player"]
     if not replies:
         return None
     return {"ticket_id": f"{t.get('ticket_id')}-appeal", "appeal_of": t.get("ticket_id"), "kind": "complaint",
@@ -87,7 +88,8 @@ def _load_queue() -> tuple:
             "appeal_of": t.get("appeal_of"),
             "proposal": None if t.get("appeal_of") else meta.get("proposal"),
             "kind": t.get("kind"),
-            "messages": [{**m, "text": normalize(m.get("text", ""))} for m in request["messages"]],
+            "messages": [{**m, "text": normalize(m["text"]), "spans": spans(normalize(m["text"]))} for m in request["messages"]],
+            "history": retrieve.history(player_text(request["messages"])) if t.get("kind") == "complaint" else None,
             "images": t.get("images_count") or 0,
             "region": t.get("region"),
             "triage": pred,
@@ -101,6 +103,16 @@ def _load_queue() -> tuple:
         })
     items.sort(key=lambda x: (PRIORITY_ORDER.get(x["triage"]["priority"], 9), not x["triage"]["needs_human"]))
     return tuple(items)
+
+
+def proposal_accuracy() -> dict:
+    """Точность прогноза из последнего отчёта make eval: интерфейс показывает измеренное, а не зашитое."""
+    reports = sorted(config.ARTIFACTS_DIR.glob("report*.json"), key=lambda p: p.stat().st_mtime, reverse=True)
+    for path in reports:
+        proposals = json.loads(path.read_text(encoding="utf-8")).get("proposals")
+        if proposals:
+            return {verdict: row["precision"] for verdict, row in proposals["by_outcome"].items() if row["checked"] >= 10}
+    return {}
 
 
 def read_archive() -> list[dict]:
@@ -142,7 +154,7 @@ def api_queue() -> dict:
     items = [{**x, "profiles": {"reporter": reputation.profile(x["reporter_hash"]),
                                 "reported": reputation.profile(x["reported_hash"])}}
              for x in load_queue() if x["id"] not in closed]
-    return {"items": items, "llm": llm.status(), "notes": reputation.read_notes()}
+    return {"items": items, "llm": llm.status(), "notes": reputation.read_notes(), "proposal_accuracy": proposal_accuracy()}
 
 
 class TranslateRequest(BaseModel):

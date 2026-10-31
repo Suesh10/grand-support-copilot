@@ -39,7 +39,7 @@ def check(category: str, text: str) -> list[str]:
     """Причины, по которым нужен человек. Пустой список — можно отвечать автоматически."""
     reasons = []
     if category in ALWAYS_HUMAN:
-        reasons.append(f"категория {category} всегда идёт человеку")
+        reasons.append("такие обращения всегда решает человек")
     if APPEAL_RE.search(text):
         reasons.append("апелляция или просьба снять наказание")
     if HACK_RE.search(text):
