@@ -10,7 +10,7 @@ import threading
 
 from sklearn.metrics.pairwise import cosine_similarity
 
-from . import config, retrieve
+from . import config, retrieve, storage
 
 LESSONS_PATH = config.ARTIFACTS_DIR / "lessons.json"
 MIN_SIMILAR = 0.25  # похожесть обращений, с которой правка переносится на новый случай
@@ -25,7 +25,7 @@ def activate() -> None:
 
 
 def _read() -> list[dict]:
-    return json.loads(LESSONS_PATH.read_text(encoding="utf-8")) if LESSONS_PATH.exists() else []
+    return storage.read_json(LESSONS_PATH, [])
 
 
 def lessons() -> list[dict]:
@@ -34,7 +34,7 @@ def lessons() -> list[dict]:
 
 def _write(lessons: list[dict]) -> None:
     LESSONS_PATH.parent.mkdir(parents=True, exist_ok=True)
-    LESSONS_PATH.write_text(json.dumps(lessons, ensure_ascii=False), encoding="utf-8")
+    storage.write_json(LESSONS_PATH, lessons)
 
 
 def add(ticket_id: str, text: str, reply: str, category: str, lang: str, nick: str | None) -> None:

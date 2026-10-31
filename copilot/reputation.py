@@ -17,7 +17,7 @@ from functools import lru_cache
 
 import joblib
 
-from . import config
+from . import config, storage
 from .labels import weak_label
 
 PATH = config.ARTIFACTS_DIR / "reputation.joblib"
@@ -108,7 +108,7 @@ def load() -> dict | None:
 
 
 def read_memory() -> dict:
-    return json.loads(MEMORY_PATH.read_text(encoding="utf-8")) if MEMORY_PATH.exists() else {}
+    return storage.read_json(MEMORY_PATH, {})
 
 
 def remember(reported_hash: str | None, category: str) -> None:
@@ -121,11 +121,11 @@ def remember(reported_hash: str | None, category: str) -> None:
         note["new"] += 1
         note["topics"][category] = note["topics"].get(category, 0) + 1
         MEMORY_PATH.parent.mkdir(parents=True, exist_ok=True)
-        MEMORY_PATH.write_text(json.dumps(memory, ensure_ascii=False), encoding="utf-8")
+        storage.write_json(MEMORY_PATH, memory)
 
 
 def read_notes() -> list[dict]:
-    return json.loads(NOTES_PATH.read_text(encoding="utf-8")) if NOTES_PATH.exists() else []
+    return storage.read_json(NOTES_PATH, [])
 
 
 def add_note(note: dict) -> dict:
@@ -135,7 +135,7 @@ def add_note(note: dict) -> dict:
         saved = {**note, "id": max((n["id"] for n in notes), default=0) + 1}
         notes.append(saved)
         NOTES_PATH.parent.mkdir(parents=True, exist_ok=True)
-        NOTES_PATH.write_text(json.dumps(notes, ensure_ascii=False), encoding="utf-8")
+        storage.write_json(NOTES_PATH, notes)
     return saved
 
 
@@ -143,7 +143,7 @@ def delete_note(note_id: int) -> None:
     with _lock:
         notes = [n for n in read_notes() if n["id"] != note_id]
         NOTES_PATH.parent.mkdir(parents=True, exist_ok=True)
-        NOTES_PATH.write_text(json.dumps(notes, ensure_ascii=False), encoding="utf-8")
+        storage.write_json(NOTES_PATH, notes)
 
 
 def find_hash(nick: str) -> str | None:

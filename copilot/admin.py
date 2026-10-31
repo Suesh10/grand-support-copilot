@@ -18,7 +18,7 @@ from fastapi import APIRouter, HTTPException
 from fastapi.responses import FileResponse
 from pydantic import BaseModel, Field
 
-from . import clusters, config, dedupe, learn, llm, reputation, retrieve
+from . import clusters, config, dedupe, doctor, learn, llm, reputation, retrieve, storage
 from .draft import handoff_draft
 from .extract import spans
 from .normalize import normalize
@@ -53,7 +53,8 @@ def rule_card(ref: str) -> dict | None:
 
 def appeal_from(t: dict) -> dict | None:
     """Ответ обвиняемого в жалобе идёт отдельным обращением во вкладку апелляций."""
-    replies = [m for m in t.get("messages") or [] if m.get("role") == "reported_player"]
+    messages = t.get("messages")
+    replies = [m for m in messages if isinstance(m, dict) and m.get("role") == "reported_player"] if isinstance(messages, list) else []
     if not replies:
         return None
     return {"ticket_id": f"{t.get('ticket_id')}-appeal", "appeal_of": t.get("ticket_id"), "kind": "complaint",
@@ -64,8 +65,61 @@ def appeal_from(t: dict) -> dict | None:
 
 @lru_cache(maxsize=1)
 def raw_tickets() -> tuple:
-    tickets = [json.loads(line) for line in open_any(QUEUE_PATH) if line.strip()]
+    tickets = read_tickets()
     return (*tickets, *filter(None, map(appeal_from, tickets)))
+
+
+def read_tickets() -> list[dict]:
+    """Очередь из файла: битая строка пропускается, остальные обращения работают."""
+    try:
+        with open_any(QUEUE_PATH) as f:
+            lines = [line for line in f if line.strip()]
+    except OSError:
+        storage.note(f"Файл очереди не найден: {QUEUE_PATH}.")
+        return []
+    tickets = []
+    for line in lines:
+        try:
+            ticket = json.loads(line)
+        except ValueError:
+            ticket = None
+        if isinstance(ticket, dict):
+            tickets.append(ticket)
+    if len(tickets) < len(lines):
+        storage.note(f"В очереди пропущено битых строк: {len(lines) - len(tickets)}.")
+    return tickets
+
+
+def queue_item(t: dict, deduper: dedupe.Deduper, series: Counter) -> dict:
+    request = ticket_to_request(t)
+    request["is_duplicate"] = not t.get("appeal_of") and deduper.is_duplicate(t)
+    pred, meta = triage_full(request)
+    refs = meta["cited_full"] or meta["rule_refs_full"]
+    if t.get("appeal_of"):  # Исход апелляции решает только человек, черновик ничего не обещает.
+        pred = {**pred, "category": "complaint.admin", "priority": "p2", "needs_human": True, "draft_reply": handoff_draft(pred["lang"]),
+                "reasons": ["апелляцию решает администратор"]}
+        refs = []
+    return {
+        "id": t.get("ticket_id"),
+        "appeal_of": t.get("appeal_of"),
+        "proposal": None if t.get("appeal_of") else meta.get("proposal"),
+        "duplicate": request["is_duplicate"],
+        "article": meta.get("article"),
+        "shows": t.get("shows"),  # только у демо-примеров: какую функцию показывает обращение
+        "kind": t.get("kind"),
+        "messages": [{**m, "text": normalize(m["text"]), "spans": spans(normalize(m["text"]))} for m in request["messages"]],
+        "history": retrieve.history(player_text(request["messages"])) if t.get("kind") == "complaint" else None,
+        "images": t.get("images_count") or 0,
+        "region": t.get("region"),
+        "triage": pred,
+        "rules": [c for c in (rule_card(r) for r in refs) if c],
+        "series": series.get(t.get("reported_nick"), 1),
+        "reporter_hash": t.get("reporter_hash"),
+        "reporter_nick": t.get("reporter_nick"),
+        "attachments": t.get("attachments") or [],  # [{url, name, type, from}]: файлы от Grand Mobile; from = reported_player у файлов обвиняемого
+        "reported_hash": t.get("reported_hash"),
+        "auto": not pred["needs_human"],
+    }
 
 
 def load_queue() -> tuple:
@@ -82,35 +136,10 @@ def _load_queue() -> tuple:
     items = []
     deduper = dedupe.Deduper()
     for t in tickets:
-        request = ticket_to_request(t)
-        request["is_duplicate"] = not t.get("appeal_of") and deduper.is_duplicate(t)
-        pred, meta = triage_full(request)
-        refs = meta["cited_full"] or meta["rule_refs_full"]
-        if t.get("appeal_of"):  # Исход апелляции решает только человек, черновик ничего не обещает.
-            pred = {**pred, "category": "complaint.admin", "priority": "p2", "needs_human": True, "draft_reply": handoff_draft(pred["lang"]),
-                    "reasons": ["апелляцию решает администратор"]}
-            refs = []
-        items.append({
-            "id": t.get("ticket_id"),
-            "appeal_of": t.get("appeal_of"),
-            "proposal": None if t.get("appeal_of") else meta.get("proposal"),
-            "duplicate": request["is_duplicate"],
-            "article": meta.get("article"),
-            "shows": t.get("shows"),  # только у демо-примеров: какую функцию показывает обращение
-            "kind": t.get("kind"),
-            "messages": [{**m, "text": normalize(m["text"]), "spans": spans(normalize(m["text"]))} for m in request["messages"]],
-            "history": retrieve.history(player_text(request["messages"])) if t.get("kind") == "complaint" else None,
-            "images": t.get("images_count") or 0,
-            "region": t.get("region"),
-            "triage": pred,
-            "rules": [c for c in (rule_card(r) for r in refs) if c],
-            "series": series.get(t.get("reported_nick"), 1),
-            "reporter_hash": t.get("reporter_hash"),
-            "reporter_nick": t.get("reporter_nick"),
-            "attachments": t.get("attachments") or [],  # [{url, name, type, from}]: файлы от Grand Mobile; from = reported_player у файлов обвиняемого
-            "reported_hash": t.get("reported_hash"),
-            "auto": not pred["needs_human"],
-        })
+        try:
+            items.append(queue_item(t, deduper, series))
+        except Exception as e:  # noqa: BLE001
+            storage.note(f"Обращение {t.get('ticket_id')} не разобрано: {type(e).__name__}. Остальная очередь работает.")
     # Внутри приоритета раньше идут заявители, чьи жалобы чаще подтверждаются. Приоритет и решение это не меняет.
     items.sort(key=lambda x: (PRIORITY_ORDER.get(x["triage"]["priority"], 9), not x["triage"]["needs_human"],
                               -reputation.reporter_accuracy(x["reporter_hash"])))
@@ -135,16 +164,16 @@ def proposal_accuracy() -> dict:
 
 
 def read_archive() -> list[dict]:
-    return json.loads(ARCHIVE_PATH.read_text(encoding="utf-8")) if ARCHIVE_PATH.exists() else []
+    return storage.read_json(ARCHIVE_PATH, [])
 
 
 def write_archive(items: list[dict]) -> None:
     ARCHIVE_PATH.parent.mkdir(parents=True, exist_ok=True)
-    ARCHIVE_PATH.write_text(json.dumps(items, ensure_ascii=False), encoding="utf-8")
+    storage.write_json(ARCHIVE_PATH, items)
 
 
 def read_deleted() -> list[str]:
-    return json.loads(DELETED_PATH.read_text(encoding="utf-8")) if DELETED_PATH.exists() else []
+    return storage.read_json(DELETED_PATH, [])
 
 
 class Feedback(BaseModel):
@@ -174,6 +203,11 @@ def api_queue() -> dict:
                                 "reported": reputation.mini_profile(x["reported_hash"])}}
              for x in load_queue() if x["id"] not in closed]
     return {"items": items, "llm": llm.status(), "notes": reputation.read_notes(), "proposal_accuracy": proposal_accuracy()}
+
+
+@router.get("/api/diagnostics")
+def api_diagnostics() -> dict:
+    return {"checks": doctor.check(len(load_queue()))}
 
 
 class TranslateRequest(BaseModel):
@@ -272,7 +306,7 @@ def api_archive_delete(ticket_id: str) -> dict:
     if item["action"] == "escalate":
         raise HTTPException(status_code=409, detail="обращение передано человеку, ответа ещё нет")
     write_archive([x for x in items if x["ticket_id"] != ticket_id])
-    DELETED_PATH.write_text(json.dumps([*read_deleted(), ticket_id], ensure_ascii=False), encoding="utf-8")
+    storage.write_json(DELETED_PATH, [*read_deleted(), ticket_id])
     return {"ok": True}
 
 
@@ -296,14 +330,14 @@ def api_delete_note(note_id: int) -> dict:
 
 
 def read_decisions() -> dict:
-    return json.loads(DECISIONS_PATH.read_text(encoding="utf-8")) if DECISIONS_PATH.exists() else {}
+    return storage.read_json(DECISIONS_PATH, {})
 
 
 @router.get("/api/templates")
 def api_templates() -> dict:
     """Предложенные шаблоны по кластерам обращений, если они построены (make train)."""
     path = clusters.CANDIDATES_PATH
-    items = json.loads(path.read_text(encoding="utf-8")) if path.exists() else []
+    items = storage.read_json(path, [])
     decisions = read_decisions()
     return {"items": [{**x, "decision": decisions.get(str(x["id"]))} for x in items if decisions.get(str(x["id"])) != "rejected"]}
 
@@ -316,14 +350,14 @@ class TemplateDecision(BaseModel):
 def api_template_decision(template_id: int, body: TemplateDecision) -> dict:
     """Принятый шаблон становится уроком: дальше он идёт теми же проверками, что и правка админа."""
     path = clusters.CANDIDATES_PATH
-    items = json.loads(path.read_text(encoding="utf-8")) if path.exists() else []
+    items = storage.read_json(path, [])
     item = next((x for x in items if x["id"] == template_id), None)
     if item is None:
         raise HTTPException(status_code=404, detail="такого шаблона нет")
     with _files_lock:
         decisions = {**read_decisions(), str(template_id): body.decision}
         DECISIONS_PATH.parent.mkdir(parents=True, exist_ok=True)
-        DECISIONS_PATH.write_text(json.dumps(decisions, ensure_ascii=False), encoding="utf-8")
+        storage.write_json(DECISIONS_PATH, decisions)
     if body.decision == "rejected":
         return {"ok": True, "learned": []}
     load_queue()
@@ -332,7 +366,7 @@ def api_template_decision(template_id: int, body: TemplateDecision) -> dict:
 
 
 def read_scores() -> list[dict]:
-    return [json.loads(line) for line in open(SCORES_PATH, encoding="utf-8")] if SCORES_PATH.exists() else []
+    return storage.read_jsonl(SCORES_PATH)
 
 
 def score_summary(scores: list[dict], review: list[dict]) -> dict:
@@ -353,7 +387,7 @@ def api_review() -> dict:
     """Слепая оценка: два ответа в случайном порядке, какой из них написал сервис, видно только после оценки."""
     if not REVIEW_PATH.exists():
         return {"available": False}
-    review = [json.loads(line) for line in open(REVIEW_PATH, encoding="utf-8") if line.strip()]
+    review = storage.read_jsonl(REVIEW_PATH)
     scores = read_scores()
     done = {s["ticket_id"] for s in scores}
     left = [r for r in review if r["ticket_id"] not in done]
@@ -405,7 +439,7 @@ def latest_report() -> dict | None:
 @router.get("/api/stats")
 def api_stats() -> dict:
     """Смена в цифрах. Итог берём из архива: отменённые действия в него не попадают."""
-    rows = [json.loads(line) for line in open(FEEDBACK_PATH, encoding="utf-8")] if FEEDBACK_PATH.exists() else []
+    rows = storage.read_jsonl(FEEDBACK_PATH)
     edited = {r["ticket_id"]: r["edited"] for r in rows if r["action"] == "send"}
     closed = read_archive()
     deleted = set(read_deleted())

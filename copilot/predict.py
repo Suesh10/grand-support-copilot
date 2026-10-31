@@ -9,6 +9,7 @@ import gzip
 import json
 import sys
 import time
+from pathlib import Path
 
 from . import llm
 from .dedupe import Deduper
@@ -39,6 +40,7 @@ def main() -> None:
     ap.add_argument("--out", required=True)
     args = ap.parse_args()
     sys.stderr.reconfigure(encoding="utf-8")
+    Path(args.out).parent.mkdir(parents=True, exist_ok=True)
 
     llm.batch_mode()
     n, broken, started = 0, 0, time.perf_counter()

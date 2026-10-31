@@ -182,7 +182,7 @@
 <script>
 const { useState, useEffect, useLayoutEffect, useRef, useMemo } = React;
 const html = htm.bind(React.createElement);
-const { Send, Pencil, ArrowUpRight, Check, BarChart3, ClipboardCheck, Lightbulb, ShieldCheck, Languages, UserRound, Combine, Undo2, ChevronDown, Bot, Paperclip, TriangleAlert, Menu, X, Sparkles } = LucideReact;
+const { Send, Pencil, ArrowUpRight, Check, BarChart3, ClipboardCheck, Lightbulb, ShieldCheck, Languages, UserRound, Combine, Undo2, ChevronDown, Bot, Paperclip, TriangleAlert, Menu, X, Sparkles, CircleHelp } = LucideReact;
 
 /* Живые данные: очередь и правила приходят из API сервиса (GET /api/queue), здесь нет вшитых обращений. */
 let TICKETS = [], AUTO = [], AUTO_TOTAL = 0, NOTES = [], LLM = { state: "off" }, ACCURACY = {};
@@ -207,6 +207,10 @@ const postJson = (url, body) => fetch(url, { method: "POST", headers: { "Content
 
 /* Действие админа и правка черновика — обучающий сигнал: ответ сервера называет обращения, которые он обновил. */
 function log(t, action) {
+  return saveAction(t, action).catch(() => { window.dispatchEvent(new Event("save-failed")); return {}; });
+}
+
+function saveAction(t, action) {
   return postJson("/api/feedback", { ticket_id: String(t.id), action, draft_before: t.original || "", draft_after: t.draft || "", category: t.cat || "", ai_category: t.aiCat || "", priority: "p" + t.p, reported_hash: t.reportedHash || null, nick: t.facts.nick, review_seconds: t.openedAt ? Math.round((Date.now() - t.openedAt) / 1000) : null }).then((r) => r.json()).catch(() => ({}));
 }
 
@@ -240,7 +244,9 @@ function toTicket(x) {
 }
 
 async function loadQueue() {
-  const data = await fetch("/api/queue").then((r) => r.json());
+  const reply = await fetch("/api/queue");
+  if (!reply.ok) throw new Error("очередь не загрузилась");
+  const data = await reply.json();
   NOTES = data.notes || [];
   LLM = data.llm;
   ACCURACY = data.proposal_accuracy || {};
@@ -252,12 +258,13 @@ async function loadQueue() {
 
 
 const TRY_VIEW = "__try";
+const HELP_VIEW = "__help";
 const NOTES_VIEW = "__notes";
 const ARCHIVE_VIEW = "__archive";
 const SHIFT_VIEW = "__shift";
 const TEMPLATES_VIEW = "__templates";
 const REVIEW_VIEW = "__review";
-const ALL_VIEWS = [TRY_VIEW, NOTES_VIEW, ARCHIVE_VIEW, SHIFT_VIEW, TEMPLATES_VIEW, REVIEW_VIEW];
+const ALL_VIEWS = [HELP_VIEW, TRY_VIEW, NOTES_VIEW, ARCHIVE_VIEW, SHIFT_VIEW, TEMPLATES_VIEW, REVIEW_VIEW];
 const reviewTime = (sec) => (sec == null ? "нет данных" : sec < 60 ? sec + " с" : Math.round(sec / 60) + " мин");
 const OUTCOMES = {
   approved: ["одобрено", "var(--ok)"], need_evidence: ["мало доказательств", "var(--p1)"], rejected: ["нарушения нет", "var(--p3)"],
@@ -395,9 +402,59 @@ function Rail({ s, activeId, openGroup, onGroup, onMenu }) {
       <span>${g.name}</span>
     </button>`)}
     <div class="tools">
-      ${[[TRY_VIEW, Sparkles, "Проверить своё"], [SHIFT_VIEW, BarChart3, "Панель смены"], [TEMPLATES_VIEW, Lightbulb, "Новые шаблоны"], [REVIEW_VIEW, ClipboardCheck, "Слепая оценка"], [NOTES_VIEW, UserRound, "Профили от админа"], [ARCHIVE_VIEW, Check, "Архив"]].map(([view, Icon, name]) => html`<button key=${view} type="button" class="tab tab-tool" onClick=${() => onGroup(view)} aria-current=${openGroup === view}><${Icon} size=${16} /><span>${name}</span></button>`)}
+      ${[[HELP_VIEW, CircleHelp, "Справка"], [TRY_VIEW, Sparkles, "Проверить своё"], [SHIFT_VIEW, BarChart3, "Панель смены"], [TEMPLATES_VIEW, Lightbulb, "Новые шаблоны"], [REVIEW_VIEW, ClipboardCheck, "Слепая оценка"], [NOTES_VIEW, UserRound, "Профили от админа"], [ARCHIVE_VIEW, Check, "Архив"]].map(([view, Icon, name]) => html`<button key=${view} type="button" class="tab tab-tool" onClick=${() => onGroup(view)} aria-current=${openGroup === view}><${Icon} size=${16} /><span>${name}</span></button>`)}
     </div>
   </nav>`;
+}
+
+const HELP_STEPS = [
+  "Слева обращения по типам, самые срочные сверху. Сервис уже открыл первое.",
+  "Прочитайте текст игрока и посмотрите вложения в правом нижнем углу рамки.",
+  "Проверьте черновик. Чтобы изменить, нажмите на него или на «Править».",
+  "«Отправить» отвечает игроку, «Эскалировать» передаёт старшему. 5 секунд можно отменить.",
+];
+const HELP_KEYS = [["Enter", "отправить"], ["E", "править"], ["X", "эскалировать"], ["Z", "отменить"], ["M", "объединить жалобы"], ["R", "пункт правил"], ["A", "автоответы"], ["Q", "вся очередь"], ["↑ ↓", "другое обращение"], ["?", "эта справка"], ["Esc", "закрыть"]];
+const HELP_TERMS = [
+  ["Нужен человек", "почему сервис не отвечает сам: решение за вами."],
+  ["Прогноз ИИ", "вероятный исход и как часто он верен. Вложений ИИ не видит, их проверяете вы."],
+  ["Как решали похожие", "счётчики прошлых решений по похожим жалобам."],
+  ["Мини-профиль", "история игрока: наведите на зону с ником. Низкая точность не значит, что жалоба ложная."],
+  ["Дубль", "тот же игрок уже писал об этом в течение часа."],
+  ["Статья поддержки", "официальная статья, которая отвечает на вопрос игрока."],
+  ["Размытые слова", "грубая лексика, нажмите на слово, чтобы прочитать."],
+];
+const HELP_CASES = [
+  ["ИИ недоступен", "Работайте дальше: сервис сам собирает черновики из шаблонов и вернётся к ИИ, когда тот ответит."],
+  ["Отправили по ошибке", "Нажмите «Отменить» в течение 5 секунд. Решения за прошлые дни лежат в архиве."],
+  ["Не уверены в решении", "Эскалируйте. Сомнение тоже нормальный ответ, и сервис не накажет никого сам."],
+  ["Текст на другом языке", "Перевод для вас стоит под текстом, ответ игрок получит на своём языке."],
+  ["Сервис не отвечает", "На Windows запустите start.bat, на других системах python run.py. Страница подключится сама."],
+];
+
+/* Всё, что нужно новому админу, внутри самого сервиса: и как работать, и что с ним сейчас. */
+function HelpView({ onBack }) {
+  const [checks, setChecks] = useState(null);
+  useEffect(() => {
+    fetch("/api/diagnostics").then((r) => r.json()).then((d) => setChecks(d.checks)).catch(() => setChecks([]));
+  }, []);
+  const mark = { ok: "var(--ok)", warn: "var(--warn)", bad: "var(--danger)" };
+  const list = (rows) => rows.map(([a, b]) => html`<p key=${a} class="text-[15px]"><b>${a}: </b>${b}</p>`);
+  return html`<div class="enter gutter max-w-[880px] mx-auto py-8 grid gap-5">
+    <div class="flex flex-wrap items-center gap-3">
+      <button type="button" class="chip" onClick=${onBack}><${X} size=${16} /> Закрыть <span class="key">Esc</span></button>
+      <h2 class="font-display text-[30px] font-bold leading-tight">Справка</h2>
+    </div>
+    <section class="card grid gap-2"><h3 class="label">Как работать</h3>${HELP_STEPS.map((x, i) => html`<p key=${i} class="text-[15px]">${i + 1}. ${x}</p>`)}</section>
+    <section class="card grid gap-2"><h3 class="label">Что значат подсказки</h3>${list(HELP_TERMS)}</section>
+    <section class="card grid gap-2"><h3 class="label">Если что-то пошло не так</h3>${list(HELP_CASES)}</section>
+    <section class="card grid gap-2 hide-phone"><h3 class="label">Клавиши</h3><p class="text-[15px]">${HELP_KEYS.map(([k, v]) => html`<span key=${k} class="inline-block mr-4"><span class="key">${k}</span> ${v}</span>`)}</p></section>
+    <section class="card grid gap-2" aria-label="Состояние сервиса"><h3 class="label">Состояние сервиса</h3>
+      ${!checks ? html`<p class="text-[15px] text-mute">Проверяю...</p>` : !checks.length ? html`<p class="text-[15px]">Сервер не ответил. Запустите start.bat или python run.py.</p>` : checks.map((c, i) => html`<div key=${i} class="text-[15px]">
+        <p><span style=${{ color: mark[c.state] }}>●</span> <b>${c.name}: </b>${c.text}</p>
+        ${c.fix && html`<p class="text-mute">Что сделать: ${c.fix}</p>`}
+      </div>`)}
+    </section>
+  </div>`;
 }
 
 /* Весь экран одного типа: все обращения списком, клик открывает обращение. */
@@ -936,6 +993,14 @@ function App() {
   const [editing, setEditing] = useState(false);
   const [toast, setToast] = useState(null);
   const [nudge, setNudge] = useState(0);
+  const [saveFailed, setSaveFailed] = useState(false);
+  const [firstVisit, setFirstVisit] = useState(() => { try { return !localStorage.getItem("help-seen"); } catch (e) { return false; } });
+  const closeFirstVisit = () => { setFirstVisit(false); try { localStorage.setItem("help-seen", "1"); } catch (e) { /* подсказка просто появится снова */ } };
+  useEffect(() => {
+    const onFail = () => setSaveFailed(true);
+    window.addEventListener("save-failed", onFail);
+    return () => window.removeEventListener("save-failed", onFail);
+  }, []);
   const areaRef = useRef(null);
 
   const active = s.tickets.find((t) => t.id === activeId) || null;
@@ -1096,6 +1161,7 @@ function App() {
       else if (e.code === "KeyZ") k.undo();
       else if (e.code === "KeyM") k.merge();
       else if (e.code === "KeyQ") k.setDrawer((o) => !o);
+      else if (e.code === "F1" || (e.code === "Slash" && e.shiftKey)) { e.preventDefault(); k.setGroupOpen(HELP_VIEW); }
       else if (e.code === "KeyR") k.setRuleOpen((o) => !o);
       else if (e.code === "KeyA") { k.setDrawer(true); k.setAutoOpen((o) => !o); }
       else if (/^Digit[1-9]$/.test(e.code) && k.active && k.active.chips) {
@@ -1115,7 +1181,9 @@ function App() {
     <div class="layout">
       <${Rail} s=${s} activeId=${activeId} openGroup=${ALL_VIEWS.includes(groupOpen) ? groupOpen : group ? group.cat : null} onGroup=${setGroupOpen} onMenu=${() => setDrawer(!drawer)} />
       <main class="main min-w-0">
-        ${groupOpen === TRY_VIEW ? html`<${TryView} onBack=${() => setGroupOpen(null)} />` : groupOpen === ARCHIVE_VIEW ? html`<${ArchiveView} onBack=${() => setGroupOpen(null)} />` : groupOpen === SHIFT_VIEW ? html`<${ShiftView} onBack=${() => setGroupOpen(null)} />` : groupOpen === TEMPLATES_VIEW ? html`<${TemplatesView} onBack=${() => setGroupOpen(null)} onLearned=${applyLearned} />` : groupOpen === REVIEW_VIEW ? html`<${ReviewView} onBack=${() => setGroupOpen(null)} />` : groupOpen === NOTES_VIEW ? html`<${NotesView} notes=${notes} onAdd=${addNote} onDelete=${deleteNote} onBack=${() => setGroupOpen(null)} />` : group ? html`<${GroupView} g=${group} onPick=${pick} onBack=${() => setGroupOpen(null)} />` : active
+        ${saveFailed && html`<p role="alert" class="gutter max-w-[880px] mx-auto pt-3 flex flex-wrap items-center gap-3 font-semibold text-dangert">Сервер не ответил: последнее действие могло не сохраниться. Проверьте его в архиве.<button type="button" class="chip" onClick=${() => setSaveFailed(false)}>Понятно</button></p>`}
+        ${firstVisit && html`<p class="gutter max-w-[880px] mx-auto pt-3 flex flex-wrap items-center gap-3 text-[15px]">Впервые здесь? Как всё устроено, написано в справке.<button type="button" class="chip" onClick=${() => { setGroupOpen(HELP_VIEW); closeFirstVisit(); }}>Открыть справку</button><button type="button" class="chip" onClick=${closeFirstVisit}>Не нужно</button></p>`}
+        ${groupOpen === HELP_VIEW ? html`<${HelpView} onBack=${() => setGroupOpen(null)} />` : groupOpen === TRY_VIEW ? html`<${TryView} onBack=${() => setGroupOpen(null)} />` : groupOpen === ARCHIVE_VIEW ? html`<${ArchiveView} onBack=${() => setGroupOpen(null)} />` : groupOpen === SHIFT_VIEW ? html`<${ShiftView} onBack=${() => setGroupOpen(null)} />` : groupOpen === TEMPLATES_VIEW ? html`<${TemplatesView} onBack=${() => setGroupOpen(null)} onLearned=${applyLearned} />` : groupOpen === REVIEW_VIEW ? html`<${ReviewView} onBack=${() => setGroupOpen(null)} />` : groupOpen === NOTES_VIEW ? html`<${NotesView} notes=${notes} onAdd=${addNote} onDelete=${deleteNote} onBack=${() => setGroupOpen(null)} />` : group ? html`<${GroupView} g=${group} onPick=${pick} onBack=${() => setGroupOpen(null)} />` : active
           ? html`${s.toxicRun >= TOXIC_PAUSE && html`<p role="status" class="gutter max-w-[880px] mx-auto pt-3 flex flex-wrap items-center gap-3 font-semibold">Вы разобрали ${s.toxicRun} токсичных обращений подряд. Сделайте паузу на пару минут.<button type="button" class="chip" onClick=${() => setS((x) => ({ ...x, toxicRun: 0 }))}>Понятно</button></p>`}<${Ticket} t=${active} editing=${editing} generating=${generating} onGenerate=${generate} onType=${(cat) => patchActive((t) => ({ ...t, cat }))} seriesCount=${seriesCount} nudge=${nudge} areaRef=${areaRef} ruleOpen=${ruleOpen} onToggleRule=${() => setRuleOpen(!ruleOpen)}
               onDraft=${(v) => patchActive((t) => ({ ...t, draft: v, edited: true }))} onEdit=${edit} onStopEdit=${() => setEditing(false)}
               onSend=${send} onEsc=${escalate} onChip=${applyChip} onMerge=${merge}
@@ -1128,7 +1196,33 @@ function App() {
   </div>`;
 }
 
-loadQueue().then(() => ReactDOM.createRoot(document.getElementById("root")).render(html`<${App} />`));
+/* Сбой экрана не должен оставлять админа перед пустой страницей: решения уже сохранены на сервере. */
+class Guard extends React.Component {
+  constructor(props) { super(props); this.state = { failed: false }; }
+  static getDerivedStateFromError() { return { failed: true }; }
+  render() {
+    if (!this.state.failed) return this.props.children;
+    return html`<div class="gutter max-w-[640px] mx-auto py-12 grid gap-4 text-center justify-items-center">
+      <h2 class="font-display text-3xl font-bold">Экран дал сбой</h2>
+      <p class="text-mute">Отправленные решения сохранены. Обновите страницу и продолжайте.</p>
+      <button type="button" class="btn btn-main" onClick=${() => location.reload()}>Обновить страницу</button>
+    </div>`;
+  }
+}
+
+const RETRY_MS = 5000;
+async function boot() {
+  try {
+    await loadQueue();
+  } catch (e) {
+    document.getElementById("root").innerHTML = '<div style="max-width:640px;margin:64px auto;padding:0 16px;text-align:center"><h2 style="font-size:28px;font-weight:700">Сервис пока не отвечает</h2><p style="color:var(--muted);margin-top:12px">Пробую подключиться каждые 5 секунд. Если не получается, запустите start.bat на Windows или python run.py на других системах.</p></div>';
+    setTimeout(boot, RETRY_MS);
+    return;
+  }
+  document.getElementById("root").innerHTML = "";
+  ReactDOM.createRoot(document.getElementById("root")).render(html`<${Guard}><${App} /><//>`);
+}
+boot();
 </script>
 
 </body>
