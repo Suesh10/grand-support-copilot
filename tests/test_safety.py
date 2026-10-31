@@ -269,3 +269,9 @@ def test_topic_words_beat_empty_complaint_guess():
 def test_bank_is_not_a_ban():
     resp = triage({"kind": "complaint", "messages": [{"text": "убил меня без причины у банка, видео есть", "attachments": 1}]})
     assert resp["category"] == "complaint.dm"
+
+
+def test_mixed_alphabet_in_section_is_fixed():
+    from copilot.llm import SECTION_RE
+    assert SECTION_RE.sub("ОП", "qoidaning 5.2 OП bandi") == "qoidaning 5.2 ОП bandi"
+    assert SECTION_RE.sub("ОП", "OPEN 5.2 ОП") == "OPEN 5.2 ОП"

@@ -216,6 +216,7 @@ def main() -> None:
     random.seed(11)
     with_llm = {t["ticket_id"] for t in random.sample(tickets, min(args.llm_sample, len(tickets)))} if llm.enabled() else set()
     mode, last_call = config.LLM_MODE, 0.0
+    llm_rows = []
     for t in tickets:
         config.LLM_MODE = mode if t["ticket_id"] in with_llm else "offline"
         if t["ticket_id"] in with_llm:
@@ -224,6 +225,10 @@ def main() -> None:
         request = ticket_to_request(t)
         request["is_duplicate"] = dedupe.is_duplicate(t)
         result, meta = triage_full(request)
+        if t["ticket_id"] in with_llm:
+            llm_rows.append({"ticket_id": t["ticket_id"], "kind": t["kind"], "lang": result["lang"], "category": result["category"],
+                             "source": meta.get("draft_source"), "proposal": meta.get("proposal"), "error": meta.get("llm_error"),
+                             "draft": result["draft_reply"]["text"], "cited": result["draft_reply"]["cited"]})
         for level, code, detail in check(t, result, meta):
             found[(level, code)].append((t["ticket_id"], detail, result["draft_reply"]["text"][:200]))
 
@@ -236,6 +241,9 @@ def main() -> None:
     for (level, code), items in sorted(found.items(), key=lambda x: (x[0][0], -len(x[1]))):
         print(f"[{level}] {code}: {len(items)}")
     opinion(found, len(tickets))
+    if llm_rows:
+        (config.ARTIFACTS_DIR / "audit_llm_drafts.jsonl").write_text(
+            "\n".join(json.dumps(r, ensure_ascii=False) for r in llm_rows), encoding="utf-8")
     out = config.ARTIFACTS_DIR / "audit.json"
     out.parent.mkdir(exist_ok=True)
     out.write_text(json.dumps({f"{k[0]} {k[1]}": v[:15] for k, v in found.items()}, ensure_ascii=False, indent=1), encoding="utf-8")

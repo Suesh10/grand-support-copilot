@@ -10,6 +10,7 @@ LLM получает только пункты правил, которые ум
 import hashlib
 import json
 import logging
+import re
 import threading
 import time
 from concurrent.futures import ThreadPoolExecutor
@@ -148,6 +149,7 @@ def translate(text: str) -> str | None:
     return translated
 
 
+SECTION_RE = re.compile(r"(?<=\d )(?:OП|ОP|OP)\b")
 PUNISH_SLOT = {"ru": "[наказание]", "kk": "[жаза]", "uz": "[jazo]"}
 ADMIN_DECISION = {
     "approved": "жалоба одобрена, нарушение подтверждено. Срок наказания не называй: вместо него напиши {slot}, его выберет администратор",
@@ -251,6 +253,8 @@ def _parse(raw: str, refs: list[str], lang: str, tokens_in: int, tokens_out: int
     reply_text = str(data.get("text", "")).strip()
     if lang in ("ru", "kk"):
         reply_text = fix_mixed_script(reply_text)
+    # Модель иногда смешивает алфавиты в названии раздела: «5.2 OП» вместо «5.2 ОП».
+    reply_text = SECTION_RE.sub("ОП", reply_text)
     allowed = set(refs)
     # Пункты, упомянутые в тексте, тоже должны быть из разрешённого списка.
     mentioned = parse_refs(reply_text)

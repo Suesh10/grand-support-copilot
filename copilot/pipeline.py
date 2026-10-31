@@ -140,7 +140,9 @@ def triage_full(request: dict, verdict_override: str | None = None) -> tuple[dic
             meta.update(result.pop("_meta"), draft_source="llm")
             if result.pop("needs_human"):
                 needs_human = True
-            reasons += [r for r in result.pop("reasons") if r not in reasons]
+            # Причины модели нужны, только если своих нет: пояснения вроде «есть шаблон» админу не помогают.
+            llm_reasons = result.pop("reasons")
+            reasons = reasons or llm_reasons or (["модель просит проверить черновик"] if needs_human else [])
             draft = result
             # Фильтр выдуманных фактов действует и на LLM: он тоже копирует их из примеров.
             if INVENTED_FACT_RE.search(draft["text"]) and verdict not in ("duplicate", "appeal_rejected"):
