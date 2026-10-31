@@ -6,7 +6,7 @@ import re
 from . import classify as clf
 from . import guard, learn, llm, model, rag, retrieve, templates
 from .draft import (INVENTED_FACT_RE, adapt_reply, handoff_draft, offline_draft, proposal_draft, retrieval_draft,
-                    strip_foreign_details)
+                    strip_foreign_details, term_is_quoted)
 from .extract import extract
 from .normalize import detect_lang, normalize
 from .rules import filter_valid, parse_refs, short_ref
@@ -129,7 +129,10 @@ def triage_full(request: dict, verdict_override: str | None = None) -> tuple[dic
     proposed = not verdict_override and facts["has_evidence"] and verdict in PROPOSE_FROM
     refs = rag.candidates(category, verdict, text, facts["rule_refs"])
     allowed = set(refs)
-    if draft is None and llm.enabled():
+    # «На проверке» и апелляции пишет шаблон: на замере модель называла там решения, которых никто не принимал,
+    # а по близости к ответам админов выигрыша не давала.
+    waits_for_admin = kind == "complaint" and not verdict_override and (verdict == UNDER_REVIEW or category == "complaint.admin")
+    if draft is None and llm.enabled() and not waits_for_admin:
         examples = templates.style_examples(lang, kind, verdict) + [
             adapt_reply(c["reply"], c.get("reported_nick"), facts["nickname"])
             for c in retrieve.similar(kind, text, k=3, verdict=known_verdict, lang=lang)]
@@ -148,6 +151,10 @@ def triage_full(request: dict, verdict_override: str | None = None) -> tuple[dic
             if INVENTED_FACT_RE.search(draft["text"]) and verdict not in ("duplicate", "appeal_rejected"):
                 draft, meta["draft_source"] = handoff_draft(lang), "handoff"
                 needs_human = True
+            # Срок только дословно из пункта правил. Иначе берём шаблон: он цитирует срок сам.
+            elif not verdict_override and not term_is_quoted(draft["text"], draft["cited"] + refs):
+                draft, meta["draft_source"] = None, None
+                meta["llm_error"] = "срок наказания не из пункта правил"
         elif result:
             meta["llm_error"] = result["_error"]
     # Без LLM жалоба всё равно получает ответ по существу: близкий ответ админа или предложение решения.

@@ -56,6 +56,13 @@ def pick_punishment(ref: str, text: str) -> str | None:
     return line.partition(":")[2].strip()
 
 
+def term_is_quoted(text: str, refs: list[str]) -> bool:
+    """Срок наказания в черновике есть в тексте цитируемых пунктов: придуманный срок хуже, чем никакого."""
+    points = load_points()
+    rules = " ".join(points[r].text for r in refs if r in points)
+    return all(m.group(0) in rules for m in PUNISH_TERM_RE.finditer(text))
+
+
 def proposal_draft(lang: str, category: str, verdict: str | None, nick: str | None, refs: list[str], text: str) -> dict | None:
     """Черновик по существу: предложенное решение или «на проверке» с ником и пунктом."""
     lang = lang if lang in templates.PROPOSALS else "ru"

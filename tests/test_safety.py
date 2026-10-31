@@ -275,3 +275,60 @@ def test_mixed_alphabet_in_section_is_fixed():
     from copilot.llm import SECTION_RE
     assert SECTION_RE.sub("ОП", "qoidaning 5.2 OП bandi") == "qoidaning 5.2 ОП bandi"
     assert SECTION_RE.sub("ОП", "OPEN 5.2 ОП") == "OPEN 5.2 ОП"
+
+
+def fake_llm(monkeypatch, text, cited=("2.1 ОП",)):
+    from copilot import pipeline
+    calls = []
+
+    def draft(*args, **kwargs):
+        calls.append(args)
+        return {"lang": "ru", "text": text, "cited": list(cited), "needs_human": True, "reasons": [],
+                "_meta": {"tokens_in": 1, "tokens_out": 1, "cost_usd": 0, "latency_s": 0}}
+
+    monkeypatch.setattr(pipeline.llm, "enabled", lambda: True)
+    monkeypatch.setattr(pipeline.llm, "draft", draft)
+    return calls
+
+
+def test_model_does_not_write_while_outcome_is_unknown(monkeypatch):
+    from copilot import pipeline
+    calls = fake_llm(monkeypatch, "Жалоба рассмотрена и отклонена.")
+    _, fake = with_verdict("rejected", 0.3)
+    monkeypatch.setattr(pipeline.model, "predict", fake)
+    monkeypatch.setattr(pipeline.retrieve, "history", lambda text: None)
+    resp, meta = pipeline.triage_full({"kind": "complaint", "messages": [{"text": "оскорбил меня, скрин есть", "attachments": 1}]})
+    assert not calls and meta["draft_source"] == "proposal" and "отклонена" not in resp["draft_reply"]["text"]
+
+
+def test_model_does_not_write_appeals(monkeypatch):
+    from copilot import pipeline
+    calls = fake_llm(monkeypatch, "Ваша жалоба отклонена.")
+    resp, _ = pipeline.triage_full({"kind": "complaint", "messages": [{"text": "не согласен с наказанием, снимите бан", "attachments": 1}]})
+    assert not calls and "отклонена" not in resp["draft_reply"]["text"]
+
+
+def test_invented_term_falls_back_to_quoted_rule(monkeypatch):
+    from copilot import pipeline
+    calls = fake_llm(monkeypatch, "Жалоба одобрена. Игрок получит мут на 45 минут по пункту 2.1 ОП.")
+    _, fake = with_verdict("approved", 0.7)
+    monkeypatch.setattr(pipeline.model, "predict", fake)
+    resp, meta = pipeline.triage_full({"kind": "complaint", "reported_nick": "Arman_Petrov",
+                                       "messages": [{"text": "оскорбил меня в чате", "attachments": 1}]})
+    assert calls and meta["draft_source"] == "proposal" and "45 минут" not in resp["draft_reply"]["text"]
+
+
+def test_quoted_term_stays(monkeypatch):
+    from copilot import pipeline
+    fake_llm(monkeypatch, "Жалоба одобрена. Игрок получит мут на 30 минут по пункту 2.1 ОП.")
+    _, fake = with_verdict("approved", 0.7)
+    monkeypatch.setattr(pipeline.model, "predict", fake)
+    resp, meta = pipeline.triage_full({"kind": "complaint", "reported_nick": "Arman_Petrov",
+                                       "messages": [{"text": "оскорбил меня в чате", "attachments": 1}]})
+    assert meta["draft_source"] == "llm" and "30 минут" in resp["draft_reply"]["text"]
+
+
+def test_citation_must_be_in_the_text():
+    from copilot import llm
+    raw = json.dumps({"text": "Жалоба рассмотрена.", "cited": ["2.1 ОП"], "needs_human": True, "reasons": []}, ensure_ascii=False)
+    assert llm._parse(raw, ["2.1 ОП"], "ru", 1, 1, 0.0)["cited"] == []

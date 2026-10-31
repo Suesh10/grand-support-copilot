@@ -267,10 +267,8 @@ def _parse(raw: str, refs: list[str], lang: str, tokens_in: int, tokens_out: int
     mentioned = parse_refs(reply_text)
     if not reply_text or any(r not in allowed for r in mentioned):
         return {"_error": "черновик сослался на непереданный пункт правил"}
-    cited = [r for r in data.get("cited", []) if r in allowed]
-    for r in mentioned:
-        if r not in cited:
-            cited.append(r)
+    # Цитата считается, только если она есть в тексте: иначе контракт и письмо игроку разойдутся.
+    cited = mentioned
     return {
         "lang": lang if lang in LANG_NAMES else "ru",
         "text": reply_text,
