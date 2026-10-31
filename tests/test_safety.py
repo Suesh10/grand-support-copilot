@@ -240,7 +240,7 @@ def test_term_is_quoted_from_the_rule():
     from copilot.draft import pick_punishment
     from copilot.rules import load_points
     plain, relatives = pick_punishment("2.1 ОП", "оскорбил меня"), pick_punishment("2.1 ОП", "оскорбил мою мать")
-    assert plain != relatives
+    assert plain != relatives and "MUTE" in plain and "Блокировка" in relatives
     assert plain in load_points()["2.1 ОП"].text and relatives in load_points()["2.1 ОП"].text
     assert "ПО" not in (pick_punishment("5.2 ОП", "летает") or "") and pick_punishment("5.2 ОП", "летает") in load_points()["5.2 ОП"].text
 

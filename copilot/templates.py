@@ -42,33 +42,33 @@ PROPOSALS = {
                          "Приложите видеозапись или дополнительные скриншоты и подайте жалобу повторно.",
         "review": "Приветствую, уважаемый игрок. Ваша жалоба{on} принята. Администрация проверит приложенные материалы{by} и сообщит решение.",
         "appeal_rejected": "Приветствую, уважаемый игрок. Ваше обращение рассмотрено: наказание выдано верно.",
-        "appeal_review": "Приветствую, уважаемый игрок. Ваше обращение принято. Администрация проверит ситуацию и сообщит решение.",
+        "appeal_review": "Приветствую, уважаемый игрок. Ваше обращение принято. Администрация проверит ситуацию{by} и сообщит решение.",
     },
     "kk": {
         "approved": "Сәлеметсіз бе! Шағымыңыз қаралды және мақұлданды: {who}{by} жазасын алады. Белсенділігіңіз үшін рақмет!",
         "need_evidence": KK["need_evidence"],
         "review": "Сәлеметсіз бе! Шағымыңыз қабылданды. Әкімшілік материалдарды{by} тексеріп, шешімін хабарлайды.",
         "appeal_rejected": "Сәлеметсіз бе! Өтінішіңіз қаралды: жаза дұрыс берілген.",
-        "appeal_review": "Сәлеметсіз бе! Өтінішіңіз қабылданды. Әкімшілік жағдайды тексеріп, шешімін хабарлайды.",
+        "appeal_review": "Сәлеметсіз бе! Өтінішіңіз қабылданды. Әкімшілік жағдайды{by} тексеріп, шешімін хабарлайды.",
     },
     "uz": {
         "approved": _UZ_COMPLAINT + "Shikoyatingiz ko'rib chiqildi va tasdiqlandi: {who}{by} jazolanadi.",
         "need_evidence": UZ["need_evidence"],
         "review": _UZ_COMPLAINT + "Shikoyatingiz qabul qilindi. Administratsiya materiallarni{by} tekshirib, qaror haqida xabar beradi.",
         "appeal_rejected": _UZ_REPORT + "Murojaatingiz ko'rib chiqildi: jazo to'g'ri berilgan.",
-        "appeal_review": _UZ_REPORT + "Murojaatingiz qabul qilindi. Administratsiya vaziyatni tekshirib, qaror haqida xabar beradi.",
+        "appeal_review": _UZ_REPORT + "Murojaatingiz qabul qilindi. Administratsiya vaziyatni{by} tekshirib, qaror haqida xabar beradi.",
     },
     "en": {
         "review": "Hello! Your complaint has been received. The administration will check the attached materials{by} and let you know the decision.",
-        "appeal_review": "Hello! Your request has been received. The administration will look into the situation and let you know the decision.",
+        "appeal_review": "Hello! Your request has been received. The administration will look into the situation{by} and let you know the decision.",
     },
     "es": {
         "review": "¡Hola! Su queja ha sido recibida. La administración revisará los materiales adjuntos{by} y le comunicará la decisión.",
-        "appeal_review": "¡Hola! Su solicitud ha sido recibida. La administración revisará la situación y le comunicará la decisión.",
+        "appeal_review": "¡Hola! Su solicitud ha sido recibida. La administración revisará la situación{by} y le comunicará la decisión.",
     },
     "pt": {
         "review": "Olá! Sua reclamação foi recebida. A administração verificará os materiais anexados{by} e informará a decisão.",
-        "appeal_review": "Olá! Sua solicitação foi recebida. A administração verificará a situação e informará a decisão.",
+        "appeal_review": "Olá! Sua solicitação foi recebida. A administração verificará a situação{by} e informará a decisão.",
     },
 }
 # Как язык называет игрока и пункт: падежи разные, поэтому строки целиком.
