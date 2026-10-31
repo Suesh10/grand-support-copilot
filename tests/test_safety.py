@@ -172,3 +172,85 @@ def test_dangerous_topics_on_every_language(probe):
         assert resp["priority"] != probe["not_priority"]
     if "category" in probe:
         assert resp["category"] == probe["category"]
+
+
+def with_verdict(verdict, confidence):
+    from copilot import pipeline
+    original = pipeline.model.predict
+    return original, lambda kind, text, raw="": (verdict, confidence) if kind == "verdict" else original(kind, text, raw)
+
+
+@pytest.mark.parametrize("verdict,confidence,expected", [
+    ("approved", 0.45, "одобрена"),
+    ("need_evidence", 0.7, "недостаточно"),
+])
+def test_confident_outcome_is_proposed_for_human(monkeypatch, verdict, confidence, expected):
+    from copilot import pipeline
+    _, fake = with_verdict(verdict, confidence)
+    monkeypatch.setattr(pipeline.model, "predict", fake)
+    monkeypatch.setattr(pipeline, "retrieval_draft", lambda *a, **k: None)
+    resp, meta = pipeline.triage_full({"kind": "complaint", "reported_nick": "Arman_Petrov",
+                                       "messages": [{"text": "оскорбил меня в чате", "attachments": 2}]})
+    assert expected in resp["draft_reply"]["text"]
+    assert resp["needs_human"] is True and pipeline.PROPOSAL_REASON in resp["reasons"]
+    assert meta["proposal"] == verdict
+
+
+@pytest.mark.parametrize("verdict", ["rejected", "invalid_format", "appeal_approved", "already_punished"])
+def test_weak_outcomes_are_never_claimed(monkeypatch, verdict):
+    from copilot import pipeline
+    _, fake = with_verdict(verdict, 0.95)
+    monkeypatch.setattr(pipeline.model, "predict", fake)
+    resp, meta = pipeline.triage_full({"kind": "complaint", "reported_nick": "Arman_Petrov",
+                                       "messages": [{"text": "оскорбил меня в чате", "attachments": 2}]})
+    text = resp["draft_reply"]["text"].lower()
+    assert "отклонен" not in text and "неверно" not in text and "снят" not in text
+    assert "Arman_Petrov" in resp["draft_reply"]["text"]  # не общая отписка, а ответ про этот случай
+    assert resp["needs_human"] is True and "proposal" not in meta
+
+
+def test_appeal_is_proposed_only_as_rejected(monkeypatch):
+    from copilot import pipeline
+    _, fake = with_verdict("appeal_rejected", 0.8)
+    monkeypatch.setattr(pipeline.model, "predict", fake)
+    resp = triage({"kind": "complaint", "messages": [{"text": "не согласен с наказанием, снимите бан", "attachments": 1}]})
+    assert "выдано верно" in resp["draft_reply"]["text"] and resp["needs_human"] is True
+    _, fake = with_verdict("appeal_approved", 0.99)
+    monkeypatch.setattr(pipeline.model, "predict", fake)
+    resp = triage({"kind": "complaint", "messages": [{"text": "не согласен с наказанием, снимите бан", "attachments": 1}]})
+    assert "снят" not in resp["draft_reply"]["text"].lower() and resp["needs_human"] is True
+
+
+def test_term_is_quoted_from_the_rule():
+    from copilot.draft import pick_punishment
+    from copilot.rules import load_points
+    plain, relatives = pick_punishment("2.1 ОП", "оскорбил меня"), pick_punishment("2.1 ОП", "оскорбил мою мать")
+    assert plain != relatives
+    assert plain in load_points()["2.1 ОП"].text and relatives in load_points()["2.1 ОП"].text
+    assert "ПО" not in (pick_punishment("5.2 ОП", "летает") or "") and pick_punishment("5.2 ОП", "летает") in load_points()["5.2 ОП"].text
+
+
+@pytest.mark.parametrize("lang,text", [("kk", "ол маған бөтен сөз айтты, скрин бар"), ("uz", "u meni haqorat qildi skrin bor")])
+def test_proposal_speaks_player_language(monkeypatch, lang, text):
+    from copilot import pipeline
+    _, fake = with_verdict("approved", 0.7)
+    monkeypatch.setattr(pipeline.model, "predict", fake)
+    resp = triage({"kind": "complaint", "reported_nick": "Arman_Petrov", "messages": [{"text": text, "attachments": 1}]})
+    assert resp["draft_reply"]["lang"] == lang and "Arman_Petrov" in resp["draft_reply"]["text"]
+    assert resp["needs_human"] is True
+
+
+@pytest.mark.parametrize("text", ["Oleg_Smirnov маған балағат сөз айтты, скрин бар", "he is cheating, flying, video attached",
+                                  "непонятно что произошло, посмотрите запись пожалуйста"])
+def test_complaint_with_attachments_always_goes_to_human(text):
+    assert triage({"kind": "complaint", "messages": [{"text": text, "attachments": 1}]})["needs_human"] is True
+
+
+def test_topic_words_beat_empty_complaint_guess():
+    resp = triage({"kind": "complaint", "messages": [{"text": "Bobur_Karimov cheat ishlatyapti, havoda uchib yuribdi, video bor", "attachments": 1}]})
+    assert resp["category"] == "complaint.cheat" and "5.2" in resp["draft_reply"]["cited"]
+
+
+def test_bank_is_not_a_ban():
+    resp = triage({"kind": "complaint", "messages": [{"text": "убил меня без причины у банка, видео есть", "attachments": 1}]})
+    assert resp["category"] == "complaint.dm"

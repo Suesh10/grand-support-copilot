@@ -8,8 +8,9 @@
 import re
 
 from . import retrieve, templates
+from .labels import REF_CATEGORY
 from .normalize import detect_lang
-from .rules import filter_valid, load_points, parse_refs
+from .rules import filter_valid, load_points, parse_refs, punishments
 
 NICK_RE = re.compile(r"\b[A-Z][a-z]+_[A-Z][a-z]+\d{0,3}\b")
 PLAYER_WORD = {"hurmatli": "o‘yinchi", "құрметті": "ойыншы"}
@@ -32,6 +33,45 @@ def strip_foreign_details(text: str) -> str:
     text = BRAND_SERVER_RE.sub(r"\1", SERVER_RE.sub(r"\1", text))
     # Структуру админов мы не знаем: не обещаем передачу конкретной должности.
     return SENIOR_RE.sub(lambda m: "администраци" if "администраци" in m.group(0) else "администрации", text)
+
+
+RELATIVES_RE = re.compile(r"родн|сем[ьеи]|мать|мам[уаы]|отц|ona\w*|onadan|ана\w*", re.I)
+# Если в пункте несколько нарушений, а игрок не уточнил, какое из них подразумевается по категории.
+DEFAULT_PUNISHMENT = {"5.2 ОП": "стороннего ПО"}
+
+
+def pick_punishment(ref: str, text: str) -> str | None:
+    """Наказание дословно из пункта правил: срок мы не придумываем, а цитируем."""
+    lines = punishments(ref)
+    if not lines:
+        return None
+    relatives = bool(RELATIVES_RE.search(text))
+    known = DEFAULT_PUNISHMENT.get(ref)
+    for line in lines:
+        title, _, value = line.partition(":")
+        if ("родн" in title.lower() and relatives) or (known and known in title):
+            return value.strip()
+    first = next((line for line in lines if "родн" not in line.partition(":")[0].lower()), lines[0])
+    return first.partition(":")[2].strip()
+
+
+def proposal_draft(lang: str, category: str, verdict: str | None, nick: str | None, refs: list[str], text: str) -> dict | None:
+    """Черновик по существу: предложенное решение или «на проверке» с ником и пунктом."""
+    lang = lang if lang in templates.PROPOSALS else "ru"
+    table = templates.PROPOSALS[lang]
+    appeal = category == "complaint.admin"
+    key = "appeal_review" if appeal else "review"
+    if verdict in ("approved", "need_evidence", "appeal_rejected"):
+        key = verdict
+    if key not in table or (verdict and verdict not in ("approved", "need_evidence", "appeal_rejected", "under_review")):
+        return None
+    topic = next((r for r in refs if REF_CATEGORY.get(r) == category), None)
+    by = templates.BY_RULE[lang].format(ref=topic) if topic else ""
+    named, anonymous = templates.WHO.get(lang, ("", ""))
+    term = pick_punishment(topic, text) if topic and lang == "ru" else None
+    filled = table[key].format(who=named.format(nick=nick) if nick else anonymous, by=by, term=f": {term}" if term else "",
+                               on=templates.ON_NICK.get(lang, "").format(nick=nick) if nick else "")
+    return {"lang": lang, "text": filled, "cited": [topic] if topic and "{by}" in table[key] else []}
 
 
 def adapt_reply(reply: str, source_reported: str | None, target_reported: str | None) -> str:

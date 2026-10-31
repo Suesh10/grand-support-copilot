@@ -22,7 +22,7 @@ from copilot.normalize import KK_LETTERS  # noqa: E402
 from copilot.pipeline import triage_full  # noqa: E402
 from copilot.predict import ticket_to_request  # noqa: E402
 from copilot.rag import NEEDS_CITATION  # noqa: E402
-from copilot.rules import is_contract_ref  # noqa: E402
+from copilot.rules import is_contract_ref, punishments  # noqa: E402
 from copilot.signals import APPEAL_RE, HACK_RE, PAYMENT_RE  # noqa: E402
 
 TAXONOMY = json.loads(config.TAXONOMY_PATH.read_text(encoding="utf-8"))
@@ -109,9 +109,15 @@ def check(t: dict, r: dict, meta: dict) -> list[tuple[str, str, str]]:
         allowed_nicks.add(t["reported_nick"])
     for nick in set(NICK_RE.findall(text)) - allowed_nicks:
         bad("ERROR", "чужой ник в черновике", nick)
-    if TERM_RE.search(text) and not TERM_RE.search(player):
-        bad("WARN", "срок наказания назван без решения админа", TERM_RE.search(text).group(0))
-    if DECISION_RE.search(text) and r.get("needs_human"):
+    # Срок разрешён только дословно из пункта правил, который цитирует черновик.
+    allowed_terms = " ".join(p for ref in meta.get("cited_full", []) for p in punishments(ref))
+    term = TERM_RE.search(text)
+    if term and not TERM_RE.search(player) and not any(line.strip(" .") in text for line in re.split(r":", allowed_terms)[1:] if line):
+        if term.group(0) not in allowed_terms:
+            bad("ERROR", "срок наказания не из цитируемого пункта", term.group(0))
+    if meta.get("proposal") and not r.get("needs_human"):
+        bad("ERROR", "предложение решения без человека", text[:80])
+    if DECISION_RE.search(text) and r.get("needs_human") and not meta.get("proposal"):
         bad("WARN", "черновик утверждает решение до проверки", DECISION_RE.search(text).group(0))
     if DECISION_RE.search(text) and OPEN_RE.search(text):
         bad("WARN", "противоречие: закрыто и на рассмотрении", text[:80])

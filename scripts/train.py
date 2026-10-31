@@ -17,7 +17,7 @@ sys.path.insert(0, str(__import__("pathlib").Path(__file__).resolve().parent.par
 
 from copilot import config, reputation, retrieve  # noqa: E402
 from copilot.retrieve import USEFUL_VERDICTS  # noqa: E402
-from copilot.labels import player_text, weak_label  # noqa: E402
+from copilot.labels import player_text, verdict_of, weak_label  # noqa: E402
 from copilot.model import MODEL_PATH, build_pipeline, model_input  # noqa: E402
 from copilot.normalize import normalize  # noqa: E402
 
@@ -63,9 +63,9 @@ def main() -> None:
     # Модель исхода жалобы: подсказывает, в каком тоне писать черновик.
     data = []
     for t in tickets:
-        if t["kind"] == "complaint" and t.get("verdict") in USEFUL_VERDICTS:
+        if t["kind"] == "complaint" and verdict_of(t):
             text = normalize(" \n".join(m.get("text", "") for m in t["messages"] if m.get("role") != "admin"))
-            data.append((model_input("complaint", text, t.get("rule_refs_raw")), t["verdict"]))
+            data.append((model_input("complaint", text, t.get("rule_refs_raw")), verdict_of(t)))
     random.shuffle(data)
     split = int(len(data) * 0.9)
     pipe = build_pipeline()

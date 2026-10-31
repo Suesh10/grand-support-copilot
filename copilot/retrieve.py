@@ -15,11 +15,10 @@ import numpy as np
 from sklearn.feature_extraction.text import TfidfVectorizer
 
 from . import config
+from .labels import KNOWN_VERDICTS as USEFUL_VERDICTS, verdict_of
 from .normalize import normalize
 
 INDEX_PATH = config.ARTIFACTS_DIR / "cases.joblib"
-USEFUL_VERDICTS = {"approved", "rejected", "need_evidence", "invalid_format", "duplicate",
-                   "already_punished", "appeal_approved", "appeal_rejected"}
 NICK_RE = re.compile(r"\b[A-Z][a-z]+_[A-Z][a-z]+\d{0,3}\b")
 
 
@@ -38,14 +37,15 @@ def build(max_reports: int = 30000) -> dict:
         player, admin = _texts(t)
         if not player or not admin or len(admin) < 8:
             continue
-        if t["kind"] == "complaint" and t.get("verdict") not in USEFUL_VERDICTS:
+        verdict = verdict_of(t)
+        if t["kind"] == "complaint" and verdict is None:
             continue
         if t["kind"] == "report":
             if reports >= max_reports:
                 continue
             reports += 1
         cases.append({
-            "kind": t["kind"], "lang": t.get("lang"), "verdict": t.get("verdict"),
+            "kind": t["kind"], "lang": t.get("lang"), "verdict": verdict,
             "violation": t.get("violation"), "punishment": t.get("punishment"),
             "reported_nick": t.get("reported_nick"), "text": player[:500], "reply": admin[:1200],
         })

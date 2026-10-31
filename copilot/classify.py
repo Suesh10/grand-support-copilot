@@ -8,7 +8,7 @@
 import re
 
 from . import model
-from .labels import APPEAL_TEXT_RE, REPORT_RULES
+from .labels import APPEAL_TEXT_RE, REPORT_RULES, TEXT_RULES
 from .signals import HACK_RE, MASS_BUG_RE, PAYMENT_RE, THREAT_RE
 
 CRITICAL_REPORT = {"report.account", "report.payment"}
@@ -62,6 +62,9 @@ def classify(kind: str, text: str, has_evidence: bool, rule_refs_raw: str = "") 
         # Апелляция на бан за читы похожа на жалобу на читы — явные маркеры апелляции важнее модели.
         if kind == "complaint" and APPEAL_TEXT_RE.search(f"{rule_refs_raw}\n{text[:200]}"):
             category, conf = "complaint.admin", max(conf, 0.75)
+        # «Неоформленная» означает, что темы не нашлось: явные слова темы важнее этого вывода модели.
+        if category == "complaint.invalid":
+            category, conf = next(((cat, 0.6) for cat, rx in TEXT_RULES if rx.search(text)), (category, conf))
         if kind == "report":
             for cat, rx in REPORT_RULES:
                 if cat in CRITICAL_REPORT and rx.search(text):

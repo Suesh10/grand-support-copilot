@@ -70,6 +70,15 @@ def load_points() -> dict[str, RulePoint]:
     return points
 
 
+def punishments(ref: str) -> list[str]:
+    """Варианты наказания из текста пункта правил: всё после «|» вида «Нарушение: MUTE…»."""
+    point = load_points().get(ref)
+    if not point:
+        return []
+    parts = [p.strip(" .") for p in point.text.split("|")[1:]]
+    return [p for p in parts if ":" in p and len(p) < 90][:4]
+
+
 def parse_refs(text: str, default_section: str = "ОП") -> list[str]:
     """Достать из свободного текста ссылки на пункты и привести к каноническому виду.
 

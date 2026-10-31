@@ -20,7 +20,7 @@ from .draft import handoff_draft
 from .normalize import normalize
 from .pipeline import triage_full
 from .predict import open_any, ticket_to_request
-from .rules import load_points
+from .rules import load_points, punishments
 
 router = APIRouter()
 
@@ -32,15 +32,6 @@ DELETED_PATH = config.ARTIFACTS_DIR / "deleted_tickets.json"
 RETENTION_DAYS = 30  # через сколько дней сайт предлагает удалить, но сам не удаляет
 PRIORITY_ORDER = {"p0": 0, "p1": 1, "p2": 2, "p3": 3}
 GENERATE_VERDICTS = {"approved", "need_evidence", "rejected", "invalid_format", "duplicate"}
-
-
-def punishments(ref: str) -> list[str]:
-    """Варианты наказания из текста пункта правил: всё после «|» вида «Нарушение: MUTE…»."""
-    point = load_points().get(ref)
-    if not point:
-        return []
-    parts = [p.strip(" .") for p in point.text.split("|")[1:]]
-    return [p for p in parts if ":" in p and len(p) < 90][:4]
 
 
 def rule_card(ref: str) -> dict | None:
@@ -84,6 +75,7 @@ def load_queue() -> tuple:
         items.append({
             "id": t.get("ticket_id"),
             "appeal_of": t.get("appeal_of"),
+            "proposal": None if t.get("appeal_of") else meta.get("proposal"),
             "kind": t.get("kind"),
             "messages": [{**m, "text": normalize(m.get("text", ""))} for m in request["messages"]],
             "images": t.get("images_count") or 0,

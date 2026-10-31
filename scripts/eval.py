@@ -31,7 +31,7 @@ from sklearn.metrics import accuracy_score, f1_score  # noqa: E402
 
 from copilot import config, llm  # noqa: E402
 from copilot.dedupe import Deduper  # noqa: E402
-from copilot.labels import weak_label  # noqa: E402
+from copilot.labels import verdict_of, weak_label  # noqa: E402
 from copilot.pipeline import triage_full  # noqa: E402
 from copilot.predict import ticket_to_request  # noqa: E402
 from copilot.rag import NEEDS_CITATION  # noqa: E402
@@ -170,6 +170,21 @@ def main() -> None:
         "flagged": len(flagged), "flagged_duplicates_by_pair": sum(bool(r["meta"].get("is_duplicate")) for r in rows),
         "admin_marked_duplicate": len(real_dups),
         "of_them_flagged": sum(r["pred"]["is_spam_or_duplicate"] for r in real_dups),
+    }
+
+    # --- Предложенные решения: сверка с исходом из ответа админа ---
+    proposed = [r for r in rows if r["meta"].get("proposal")]
+    known = [r for r in proposed if verdict_of(r["t"])]
+    # «Отклонена по причине нехватки доказательств» по смыслу то же, что просьба о доказательствах.
+    right = lambda r: verdict_of(r["t"]) == r["meta"]["proposal"] or (  # noqa: E731
+        r["meta"]["proposal"] == "need_evidence" and verdict_of(r["t"]) == "rejected")
+    report["proposals"] = {
+        "share_of_complaints": pct(len(proposed) / max(1, sum(r["t"]["kind"] == "complaint" for r in rows))),
+        "by_outcome": {v: {"n": sum(r["meta"]["proposal"] == v for r in proposed),
+                           "checked": sum(r["meta"]["proposal"] == v for r in known),
+                           "precision": pct(sum(right(r) for r in known if r["meta"]["proposal"] == v)
+                                            / max(1, sum(r["meta"]["proposal"] == v for r in known)))}
+                       for v in sorted({r["meta"]["proposal"] for r in proposed})},
     }
 
     # --- Близость черновика к реальному ответу админа (прокси для слепой оценки) ---
