@@ -13,6 +13,9 @@ from .signals import HACK_RE, MASS_BUG_RE, PAYMENT_RE, THREAT_RE
 
 CRITICAL_REPORT = {"report.account", "report.payment"}
 ADMIN_HINT_BELOW = 0.7
+DM_TEXT_RE = re.compile(r"\bубил\b|\bзбил\b|\bсбил\b|\bдм\b|\bdm\b", re.I)
+# Ссылка на правила фракций и лидеров: в жалобе есть суть, просто она вне основных пунктов.
+OTHER_RULES_RE = re.compile(r"\d+\.\d+\s*(?:fw|фв|оплз)", re.I)
 
 KEYWORDS = {
     "complaint.cheat": r"чит|soft|софт|аим|aim|wh\b|вх\b|летает|спидхак|cheat|hack",
@@ -66,7 +69,7 @@ def classify(kind: str, text: str, has_evidence: bool, rule_refs_raw: str = "",
             category, conf = "complaint.admin", max(conf, 0.75)
         # «Неоформленная» означает, что темы не нашлось: явные слова темы важнее этого вывода модели.
         if category == "complaint.invalid":
-            category, conf = next(((cat, 0.6) for cat, rx in [*TEXT_RULES, ("complaint.insult", THREAT_RE)] if rx.search(text)), (category, conf))
+            category, conf = next(((cat, 0.6) for cat, rx in [*TEXT_RULES, ("complaint.insult", THREAT_RE), ("complaint.dm", DM_TEXT_RE), ("complaint.other", OTHER_RULES_RE)] if rx.search(text)), (category, conf))
         if kind == "report":
             for cat, rx in REPORT_RULES:
                 if cat in CRITICAL_REPORT and rx.search(text):
