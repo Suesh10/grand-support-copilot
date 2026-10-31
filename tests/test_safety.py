@@ -212,6 +212,14 @@ def test_unknown_language_goes_to_human():
     assert resp["lang"] == "und" and resp["needs_human"] is True and resp["reasons"] == ["язык игрока не распознан"]
 
 
+def test_review_draft_names_the_topic_only_when_sure():
+    from copilot.draft import proposal_draft
+    named = proposal_draft("ru", "complaint.cheat", "under_review", "Timur_Volkov", ["5.2 ОП"], "читы", True)["text"]
+    assert "жалоба на Timur_Volkov по поводу читов принята" in named
+    assert "по поводу" not in proposal_draft("ru", "complaint.cheat", "under_review", "Timur_Volkov", ["5.2 ОП"], "читы", False)["text"]
+    assert "по поводу" not in proposal_draft("uz", "complaint.cheat", "under_review", "Timur_Volkov", ["5.2 ОП"], "читы", True)["text"]
+
+
 def test_mass_outage_goes_to_human_without_asking_to_clarify():
     resp = triage({"kind": "report", "messages": [{"role": "player", "text": "сервер лежит, никто не может зайти"}]})
     assert resp["priority"] == "p0" and resp["needs_human"] is True

@@ -78,7 +78,8 @@ def appeal_hint(text: str) -> str:
     return hint
 
 
-def proposal_draft(lang: str, category: str, verdict: str | None, nick: str | None, refs: list[str], text: str) -> dict | None:
+def proposal_draft(lang: str, category: str, verdict: str | None, nick: str | None, refs: list[str], text: str,
+                   sure_of_topic: bool = False) -> dict | None:
     """Черновик по существу: предложенное решение или «на проверке» с ником и пунктом."""
     lang = lang if lang in templates.PROPOSALS else "ru"
     table = templates.PROPOSALS[lang]
@@ -93,7 +94,8 @@ def proposal_draft(lang: str, category: str, verdict: str | None, nick: str | No
     named, anonymous = templates.WHO.get(lang, ("", ""))
     term = pick_punishment(topic, text) if topic and lang == "ru" else None
     filled = table[key].format(who=named.format(nick=nick) if nick else anonymous, by=by, term=f": {term}" if term else "",
-                               on=templates.ON_NICK.get(lang, "").format(nick=nick) if nick else "")
+                               on=templates.ON_NICK.get(lang, "").format(nick=nick) if nick else "",
+                               topic=templates.REVIEW_TOPIC.get(category, "") if sure_of_topic else "")
     if lang == "ru" and key == "appeal_review":
         filled += appeal_hint(text)
     return {"lang": lang, "text": filled, "cited": [topic] if topic and "{by}" in table[key] else []}

@@ -33,6 +33,7 @@ PROPOSE_FROM = {"approved": 0.4, "need_evidence": 0.6, "appeal_rejected": 0.6}
 HISTORY_FROM = {"approved": 0.7, "need_evidence": 0.7}
 PROPOSAL_REASON = "исход предложен моделью, вложений она не видит: проверьте доказательства"
 EMPTY_COMPLAINT = 15  # символов: короче этого в жалобе нет описания
+NAME_TOPIC_FROM = 0.7  # ниже категория часто неверна, а ошибочная тема в ответе хуже общих слов
 LOW_CONFIDENCE = 0.5  # на ручной разметке ниже этой уверенности категория верна меньше чем в половине случаев
 CITATION_LINE = {"ru": "Основание: пункт {ref}.", "kk": "Негіз: {ref} тармағы.", "uz": "Asos: {ref} bandi.",
                  "en": "Reference: rule {ref}.", "es": "Referencia: regla {ref}.", "pt": "Referência: regra {ref}."}
@@ -204,7 +205,7 @@ def triage_full(request: dict, verdict_override: str | None = None) -> tuple[dic
             draft = retrieval_draft(kind, text, lang, verdict, facts["nickname"], allowed)
             meta["draft_source"] = "retrieval" if draft else None
         if draft is None:
-            draft = proposal_draft(lang, category, verdict, facts["nickname"], refs, text)
+            draft = proposal_draft(lang, category, verdict, facts["nickname"], refs, text, confidence >= NAME_TOPIC_FROM)
             meta["draft_source"] = "proposal" if draft else None
     # Офлайн на kk/uz: шаблон по вероятному исходу лучше, чем чужой русский ответ.
     if draft is None and lang in templates.BY_LANG:
