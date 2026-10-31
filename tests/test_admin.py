@@ -374,3 +374,20 @@ def test_admin_can_answer_an_appeal_in_one_click():
     r = client.post("/api/generate/demo-05-appeal", json={"verdict": "appeal_rejected"})
     assert r.status_code == 200 and "выдано верно" in r.json()["draft_reply"]["text"]
     assert client.post("/api/generate/demo-05-appeal", json={"verdict": "appeal_approved"}).status_code == 422  # снятие пишет сам админ
+
+
+def test_old_outage_is_not_shown_as_current(monkeypatch):
+    import time
+    monkeypatch.setattr(llm, "enabled", lambda: True)
+    monkeypatch.setattr(llm, "_health", {"ok": 1, "errors": 1, "last_error": "503", "last_ok_at": 1.0, "last_error_at": time.time() - 3600})
+    assert llm.status()["state"] == "ok"
+    llm._health["last_error_at"] = time.time()
+    assert llm.status()["state"] == "down"
+
+
+def test_scores_of_an_old_set_do_not_count():
+    review = {"ticket_id": "new", "lang": "ru", "player": "текст", "draft": "Ч", "admin": "А"}
+    admin.REVIEW_PATH.write_text(json.dumps(review, ensure_ascii=False), encoding="utf-8")
+    admin.SCORES_PATH.write_text(json.dumps({"ticket_id": "old", "draft_score": 5, "admin_score": 4}), encoding="utf-8")
+    data = client.get("/api/review").json()
+    assert data["done"] == 0 and data["summary"]["n"] == 0 and data["item"]["ticket_id"] == "new"

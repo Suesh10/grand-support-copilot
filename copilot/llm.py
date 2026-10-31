@@ -80,6 +80,8 @@ def enabled() -> bool:
     return config.LLM_MODE != "offline" and bool(config.GEMINI_API_KEY)
 
 
+OUTAGE_SHOWN_S = 300  # разовый сбой: без новых запросов статус иначе так и остался бы красным
+
 # Здоровье LLM видно админу: иначе сбой незаметен, черновики просто становятся шаблонными.
 _health = {"ok": 0, "errors": 0, "last_error": None, "last_error_at": None, "last_ok_at": None}
 
@@ -96,9 +98,10 @@ def _mark(error: Exception | None) -> None:
 
 
 def status() -> dict:
-    """off: ключа нет; down: последний запрос упал; ok: работает или ещё не вызывался."""
+    """off: ключа нет; down: последний запрос недавно упал; ok: работает, давно не вызывался или сбой устарел."""
     last_ok, last_error = _health["last_ok_at"] or 0, _health["last_error_at"] or 0
-    state = "off" if not enabled() else "down" if last_error > last_ok else "ok"
+    recent = time.time() - last_error < OUTAGE_SHOWN_S
+    state = "off" if not enabled() else "down" if last_error > last_ok and recent else "ok"
     return {"state": state, "last_error": _health["last_error"] if state == "down" else None,
             "calls_ok": _health["ok"], "calls_failed": _health["errors"]}
 

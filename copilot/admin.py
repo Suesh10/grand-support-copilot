@@ -329,7 +329,9 @@ def read_scores() -> list[dict]:
 
 
 def score_summary(scores: list[dict], review: list[dict]) -> dict:
+    # Набор черновиков пересобирается: оценки старых версий к нынешним ответам не относятся.
     langs = {r["ticket_id"]: r["lang"] for r in review}
+    scores = [x for x in scores if x["ticket_id"] in langs]
     mean = lambda rows, key: round(sum(r[key] for r in rows) / len(rows), 2) if rows else None  # noqa: E731
     by_lang = {}
     for lang in sorted(set(langs.values())):
