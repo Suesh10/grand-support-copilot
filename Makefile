@@ -17,7 +17,7 @@ PORT ?= 8000
 HOST ?= 127.0.0.1
 MODEL := artifacts/classifier.joblib
 
-.PHONY: install train models serve predict eval examples audit test
+.PHONY: install train models serve predict eval examples audit review test
 
 install:
 	python -m venv .venv
@@ -52,8 +52,14 @@ eval:
 examples:
 	$(PY) scripts/examples.py
 
+# У бесплатного ключа дневной лимит: через LLM идёт только выборка, остальное офлайн.
+AUDIT_LLM ?= 0
 audit:
-	$(PY) scripts/audit.py
+	$(PY) scripts/audit.py --llm-sample $(AUDIT_LLM)
+
+# Слепая оценка: готовит 30 черновиков рядом с реальными ответами, вкладка в интерфейсе админа.
+review:
+	$(PY) scripts/review_sample.py
 
 test:
 	$(PY) -m pytest -q

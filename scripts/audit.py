@@ -6,16 +6,19 @@
 Примеры с текстом игроков пишутся только в artifacts/, в репозиторий не попадают.
 """
 
+import argparse
 import json
+import random
 import re
 import sys
+import time
 from collections import defaultdict
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
 
-from copilot import config  # noqa: E402
+from copilot import config, llm  # noqa: E402
 from copilot.dedupe import Deduper  # noqa: E402
 from copilot.guard import FORBIDDEN_RE, PROMISE_RE  # noqa: E402
 from copilot.normalize import KK_LETTERS  # noqa: E402
@@ -203,20 +206,33 @@ def opinion(found: dict, total: int) -> None:
 
 def main() -> None:
     sys.stdout.reconfigure(encoding="utf-8")
+    ap = argparse.ArgumentParser()
+    ap.add_argument("--llm-sample", type=int, default=0, help="сколько обращений прогнать через LLM: у бесплатного ключа дневной лимит")
+    ap.add_argument("--llm-rpm", type=float, default=12, help="лимит запросов к LLM в минуту")
+    args = ap.parse_args()
     tickets = [json.loads(line) for line in open(config.VALID_PATH, encoding="utf-8")]
     found = defaultdict(list)
     dedupe = Deduper()
+    random.seed(11)
+    with_llm = {t["ticket_id"] for t in random.sample(tickets, min(args.llm_sample, len(tickets)))} if llm.enabled() else set()
+    mode, last_call = config.LLM_MODE, 0.0
     for t in tickets:
+        config.LLM_MODE = mode if t["ticket_id"] in with_llm else "offline"
+        if t["ticket_id"] in with_llm:
+            time.sleep(max(0.0, last_call + 60 / args.llm_rpm - time.perf_counter()))
+            last_call = time.perf_counter()
         request = ticket_to_request(t)
         request["is_duplicate"] = dedupe.is_duplicate(t)
         result, meta = triage_full(request)
         for level, code, detail in check(t, result, meta):
             found[(level, code)].append((t["ticket_id"], detail, result["draft_reply"]["text"][:200]))
 
+    config.LLM_MODE = "offline"
     check_provocations(found)
+    config.LLM_MODE = mode
     errors = sum(len(v) for (lvl, _), v in found.items() if lvl == "ERROR")
     warns = sum(len(v) for (lvl, _), v in found.items() if lvl == "WARN")
-    print(f"Обращений: {len(tickets)} · ошибок: {errors} · предупреждений: {warns}\n")
+    print(f"Обращений: {len(tickets)}, из них через LLM: {len(with_llm)} · ошибок: {errors} · предупреждений: {warns}\n")
     for (level, code), items in sorted(found.items(), key=lambda x: (x[0][0], -len(x[1]))):
         print(f"[{level}] {code}: {len(items)}")
     opinion(found, len(tickets))

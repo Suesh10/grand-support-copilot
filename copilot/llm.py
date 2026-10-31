@@ -105,6 +105,11 @@ def use_cache() -> None:
     _cache_on = True
 
 
+def _speed_settings(types) -> dict:
+    """Черновик короткий, долгие рассуждения модели ему не нужны: они только съедают p95 и деньги."""
+    return {"thinking_config": types.ThinkingConfig(thinking_budget=0)} if config.LLM_NO_THINKING else {}
+
+
 def _cache_key(contents: str, system: str) -> str:
     return hashlib.sha256(f"{config.LLM_MODEL}\n{system}\n{contents}".encode("utf-8")).hexdigest()
 
@@ -223,6 +228,7 @@ def draft(kind: str, lang: str, category: str, verdict: str | None, text: str,
                         response_mime_type="application/json",
                         temperature=0.2,
                         max_output_tokens=400,
+                        **_speed_settings(types),
                     ),
                 )
                 # API не принимает таймаут меньше 10 с, а p95 по ТЗ ≤ 5 с — ограничиваем сами.

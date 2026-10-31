@@ -15,12 +15,17 @@ ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
 
 from copilot import config, llm  # noqa: E402
+from copilot.normalize import detect_lang  # noqa: E402
 from copilot.pipeline import triage_full  # noqa: E402
 from copilot.predict import ticket_to_request  # noqa: E402
 
 OUT = ROOT / "data" / "gold" / "drafts_review.jsonl"
 PLAN = [("ru", "complaint", 12), ("ru", "report", 3), ("uz", "complaint", 8), ("kk", "complaint", 7)]
 PAUSE_S = 6  # лимит бесплатного ключа
+
+
+def player_of(ticket: dict) -> str:
+    return " ".join(m.get("text") or "" for m in ticket["messages"] if m.get("role") == "player")
 
 
 def main() -> None:
@@ -30,8 +35,9 @@ def main() -> None:
     tickets = [json.loads(line) for line in open(config.VALID_PATH, encoding="utf-8")]
     rows = []
     for lang, kind, n in PLAN:
-        pool = [t for t in tickets if t.get("lang") == lang and t["kind"] == kind
-                and len(" ".join(m["text"] for m in t["messages"] if m["role"] == "player")) >= 8]
+        # Язык по нашему определению: поле lang считает казахским и русский текст со случайной буквой.
+        pool = [t for t in tickets if t["kind"] == kind and len(player_of(t)) >= 8
+                and detect_lang(player_of(t), t.get("server_lang")) == lang]
         for t in random.sample(pool, min(n, len(pool))):
             pred, meta = triage_full(ticket_to_request(t))
             rows.append({"ticket_id": t["ticket_id"], "lang": pred["lang"], "kind": kind, "category": pred["category"],
