@@ -3,8 +3,10 @@
 
 ifeq ($(OS),Windows_NT)
   VENV_PY := .venv/Scripts/python.exe
+  SYSTEM_PY := python
 else
   VENV_PY := .venv/bin/python
+  SYSTEM_PY := python3
 endif
 PY := $(if $(wildcard $(VENV_PY)),$(VENV_PY),python3)
 
@@ -19,7 +21,7 @@ HOST ?= 127.0.0.1
 .PHONY: install train models serve predict eval examples audit review test doctor
 
 install:
-	python -m venv .venv
+	$(SYSTEM_PY) -m venv .venv
 	$(VENV_PY) -m pip install -q --upgrade pip
 	$(VENV_PY) -m pip install -q -r requirements.txt
 

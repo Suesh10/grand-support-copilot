@@ -4,7 +4,7 @@
 
 ## Что умеет сервис и где это увидеть
 
-Запустите `make serve` и откройте `http://localhost:8000/admin`: в очереди 31 пример, у каждого написано, что он показывает.
+Запустите `make serve` и откройте `http://localhost:8000/admin`: в очереди 32 примера, у каждого написано, что он показывает.
 
 | Функция | Пример | Где смотреть |
 |---|---|---|
@@ -28,7 +28,7 @@
 | Порядок очереди по точности заявителя | внутри одного приоритета | жалобы не отклоняются |
 | Справка и самопроверка сервиса | меню слева, клавиша ? | как работать и что сделать при сбое |
 | Запуск в один шаг и автоперезапуск | `start.bat` или `python run.py` | зависимости, данные, модели, порт |
-| Перевод для администратора со всех языков, кроме русского, нужен ключ Gemini | `demo-04`, `demo-24` | под текстом игрока и черновиком |
+| Автоперевод для администратора с оценкой 0–100%, нужен ключ Gemini | `demo-04`, `demo-24`, `demo-32` | под текстом игрока и черновиком |
 | Дубли и спам | `demo-21`, `demo-23`, `demo-09` | список «отвечено автоматически» в меню, отметка «Дубль» |
 | Серия жалоб на одного игрока и объединение | `demo-01`, `demo-11`, `demo-12` | кнопка «Объединить» |
 | Мини-профиль игрока | `demo-11` | наведение на зону игрока |
@@ -65,7 +65,7 @@
 }
 ```
 
-**Ответ** (источник черновика: `llm`, 2.03 с, $0.00061)
+**Ответ** (источник черновика: `llm`, 2.48 с, $0.00061)
 ```json
 {
   "lang": "ru",
@@ -174,7 +174,7 @@
   },
   "draft_reply": {
     "lang": "uz",
-    "text": "Hurmatli o'yinchi, shikoyatingiz uchun rahmat. Administratsiya materiallarni qoidalarning 5.2 ОП bandi bo'yicha tekshirib, qaror haqida xabar beradi.",
+    "text": "Hurmatli o'yinchi, shikoyatingiz uchun rahmat. Administratsiya materiallarni qoidalarning 5.2 OP bandi bo'yicha tekshirib, qaror haqida xabar beradi.",
     "cited": [
       "5.2"
     ]
@@ -425,7 +425,7 @@
   },
   "draft_reply": {
     "lang": "uz",
-    "text": "Hurmatli o'yinchi, murojaatingiz uchun rahmat. Administratsiya vaziyatni qoidalarning 3.4 ОП bandi bo'yicha tekshirib, qaror haqida xabar beradi.",
+    "text": "Hurmatli o'yinchi, murojaatingiz uchun rahmat. Administratsiya vaziyatni qoidalarning 3.4 OP bandi bo'yicha tekshirib, qaror haqida xabar beradi.",
     "cited": [
       "3.4"
     ]
@@ -705,7 +705,7 @@
 }
 ```
 
-**Ответ** (источник черновика: `llm`, 1.19 с, $0.00065)
+**Ответ** (источник черновика: `llm`, 3.41 с, $0.00065)
 ```json
 {
   "lang": "ru",
@@ -750,7 +750,7 @@
 }
 ```
 
-**Ответ** (источник черновика: `llm`, 0.85 с, $0.00040)
+**Ответ** (источник черновика: `llm`, 1.66 с, $0.00048)
 ```json
 {
   "lang": "ru",

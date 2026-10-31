@@ -401,6 +401,23 @@ def test_reporter_accuracy_only_orders_the_queue():
     assert next(i for i in items if i["id"] == "demo-11")["triage"]["needs_human"] is True
 
 
+def test_translation_quality_compares_with_the_original():
+    assert llm.translation_quality("Hello, my friend!", "hello my friend") == 100
+    assert llm.translation_quality("hello my friend", "qwerty zzz") < 30
+
+
+def test_translation_comes_with_a_score(monkeypatch):
+    answers = {"русский": "привет", "английский": "hello"}
+    monkeypatch.setattr(llm, "translate", lambda text, into="русский": answers[into])
+    assert client.post("/api/translate", json={"text": "hello", "lang": "en"}).json() == {"text": "привет", "quality": 100}
+
+
+def test_translation_without_a_back_check_says_so(monkeypatch):
+    monkeypatch.setattr(llm, "translate", lambda text, into="русский": "привет" if into == "русский" else None)
+    assert llm.checked_translation("hello", "en") == {"text": "привет", "quality": None}
+    assert llm.checked_translation("merhaba", None) == {"text": "привет", "quality": None}
+
+
 def test_old_outage_is_not_shown_as_current(monkeypatch):
     import time
     monkeypatch.setattr(llm, "enabled", lambda: True)

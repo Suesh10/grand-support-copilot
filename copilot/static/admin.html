@@ -422,6 +422,7 @@ const HELP_TERMS = [
   ["Дубль", "тот же игрок уже писал об этом в течение часа."],
   ["Статья поддержки", "официальная статья, которая отвечает на вопрос игрока."],
   ["Размытые слова", "грубая лексика, нажмите на слово, чтобы прочитать."],
+  ["Оценка автоперевода", "сервис переводит текст обратно и сравнивает с оригиналом. Это примерная оценка от 0 до 100%: человек перевод не проверял. Ниже 60% смысл мог исказиться."],
 ];
 const HELP_CASES = [
   ["ИИ недоступен", "Работайте дальше: сервис сам собирает черновики из шаблонов и вернётся к ИИ, когда тот ответит."],
@@ -516,12 +517,16 @@ function Drawer({ s, activeId, autoOpen, onAuto, onCheck, onPick, onClose }) {
 }
 
 const NEEDS_RU = ["kk", "uz", "en", "es", "pt"];
+/* Язык, который сервис не распознал, но текст явно не русский: турецкий, польский и другие. */
+const foreignText = (t) => NEEDS_RU.includes(t.lang) || (t.lang === "und" && /[A-Za-zÀ-ɏ]{3}/.test(t.text));
 const NO_RU = "Перевода пока нет: ИИ не ответил. Откройте обращение ещё раз позже.";
 
-function Translation({ text, stale }) {
+const LOW_TRANSLATION = 60;  /* наша планка осторожности, на людях не замерена */
+function Translation({ text, stale, quality }) {
+  const shown = text !== NO_RU;
   return html`<div class="mt-4 pt-4 border-t border-[var(--line)] flex gap-3 text-[15px] text-mute">
     <${Languages} size=${18} class="flex-none mt-[3px]" />
-    <p class="min-w-0">${stale ? html`<b class="text-warnt">Перевод не обновлён после правки. </b>` : null}${text}</p>
+    <p class="min-w-0">${stale ? html`<b class="text-warnt">Перевод не обновлён после правки. </b>` : null}${text}${shown && html`<span class="block mt-1 text-sm">Автоперевод, человек не проверял. Оценка качества: ${quality == null ? "нет" : quality + "%"}.${quality != null && quality < LOW_TRANSLATION ? html` <b class="text-warnt">Смысл мог исказиться.</b>` : null}</span>`}</p>
   </div>`;
 }
 
@@ -907,7 +912,7 @@ function Ticket({ t, editing, generating, onGenerate, onType, seriesCount, nudge
     <h3 class="side-title">${t.appealOf ? "Игрок" : "Заявитель"}</h3>
     <${Box} nick=${t.appealOf ? t.facts.nick : t.reporterNick} letter=${t.appealOf ? "И" : "З"} own p=${t.appealOf ? t.profiles.reported : t.profiles.reporter}>
       ${shown.map((m, i) => html`<p key=${t.id + i} class="claim-text" style=${{ fontSize: textSize(m.text) }}><${Marked} text=${m.text} spans=${m.spans} onRule=${onOpenRule} /></p>`)}
-      ${(t.textRu || NEEDS_RU.includes(t.lang)) && html`<${Translation} text=${t.textRu || NO_RU} />`}
+      ${(t.textRu || foreignText(t)) && html`<${Translation} text=${t.textRu || NO_RU} quality=${t.textRuQuality} />`}
       ${t.facts.proof !== "Нет" && !t.images && !t.attachments.length && html`<p class="mt-3 flex items-center gap-2 text-[15px] text-mute"><${Paperclip} size=${16} /> ${t.facts.proof}</p>`}
       <${Proofs} files=${t.attachments} images=${t.images} />
     <//>
@@ -921,7 +926,7 @@ function Ticket({ t, editing, generating, onGenerate, onType, seriesCount, nudge
       ${t.learned && html`<p class="forecast"><b>Учтена ваша правка</b><span class="text-mute">вы исправляли похожий ответ</span></p>`}
       ${t.proposal && html`<p class="forecast"><span>Прогноз ИИ: <b>${FORECAST[t.proposal]}</b></span>${ACCURACY[t.proposal] && html`<span class="text-mute">верно в ${ruNumber(ACCURACY[t.proposal])} проверенных случаев</span>`}<span class="text-mute">Вложений ИИ не видит</span></p>`}
       <textarea id="draft" ref=${areaRef} class="draft" rows="2" readOnly=${!editing} value=${t.draft} onChange=${(e) => onDraft(e.target.value)} onClick=${onEdit} onBlur=${onStopEdit}></textarea>
-      ${(t.draftRu || NEEDS_RU.includes(t.lang)) && html`<${Translation} text=${t.draftRu || NO_RU} stale=${t.draftRu && t.edited} />`}
+      ${(t.draftRu || NEEDS_RU.includes(t.lang)) && html`<${Translation} text=${t.draftRu || NO_RU} quality=${t.draftRuQuality} stale=${t.draftRu && t.edited} />`}
       ${needsPunish && html`<p class="mt-3 inline-flex items-center gap-2 rounded-[2px] border border-[var(--line)] text-warnt px-4 py-2 text-[15px] font-semibold"><${TriangleAlert} size=${16} class="flex-none" /> Выберите наказание ниже или впишите своё</p>`}
     </section>
     <${History} h=${t.history} />
@@ -1086,7 +1091,7 @@ function App() {
 
   const patchTicket = (id, fn) => setS((x) => ({ ...x, tickets: x.tickets.map((t) => (t.id === id ? fn(t) : t)) }));
 
-  const translate = (text) => postJson("/api/translate", { text }).then((r) => r.json()).then((d) => d.text).catch(() => null);
+  const translate = (text, lang) => postJson("/api/translate", { text, lang }).then((r) => r.json()).catch(() => ({ text: null, quality: null }));
 
   const generate = async (verdict) => {
     if (!active || generating) return;
@@ -1098,8 +1103,8 @@ function App() {
       patchTicket(id, (t) => ({ ...t, draft: r.draft_reply.text, draftRu: null, edited: false, chip: null, chipData: null, verdict, proposal: null,
         human: r.reasons, genNote: offline ? "ИИ недоступен: черновик собран из похожего случая." : "Черновик от ИИ, цитаты проверены. Можно править." }));
       if (NEEDS_RU.includes(lang)) {
-        const ru = await translate(r.draft_reply.text);
-        if (ru) patchTicket(id, (t) => ({ ...t, draftRu: ru }));
+        const ru = await translate(r.draft_reply.text, lang);
+        if (ru.text) patchTicket(id, (t) => ({ ...t, draftRu: ru.text, draftRuQuality: ru.quality }));
       }
     } catch (e) {
       patchTicket(id, (t) => ({ ...t, genNote: "Не удалось сгенерировать, попробуйте ещё раз." }));
@@ -1110,10 +1115,10 @@ function App() {
 
   /* Перевод для русскоязычных админов подгружается при открытии казахского или узбекского тикета. */
   useEffect(() => {
-    if (!active || !NEEDS_RU.includes(active.lang) || active.textRu) return;
-    const { id, text, draft } = active;
-    translate(text).then((ru) => { if (ru) patchTicket(id, (t) => ({ ...t, textRu: ru })); });
-    translate(draft).then((ru) => { if (ru) patchTicket(id, (t) => (t.draftRu ? t : { ...t, draftRu: ru })); });
+    if (!active || !foreignText(active) || active.textRu) return;
+    const { id, text, draft, lang } = active;
+    translate(text, lang).then((ru) => { if (ru.text) patchTicket(id, (t) => ({ ...t, textRu: ru.text, textRuQuality: ru.quality })); });
+    if (NEEDS_RU.includes(lang)) translate(draft, lang).then((ru) => { if (ru.text) patchTicket(id, (t) => (t.draftRu ? t : { ...t, draftRu: ru.text, draftRuQuality: ru.quality })); });
   }, [activeId]);
   const pick = (id) => { setActiveId(id); setDrawer(false); setGroupOpen(null); };
   const group = groupOpen ? groupsOf(s.tickets).find((g) => g.cat === groupOpen) : null;

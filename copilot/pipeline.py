@@ -19,6 +19,10 @@ ARTICLE_CATEGORIES = {"report.question", "report.help", "report.complaint"}
 log = logging.getLogger(__name__)
 REPLY_LANGS = {"kk", "uz", "en", "es", "pt"}
 FOREIGN_HANDOFF = {"en", "es", "pt"}
+LATIN_LANGS = {"uz", "en", "es", "pt"}
+UNKNOWN_LANG_RE = re.compile(r"[A-Za-zÀ-ɏ]{3,}(?:[\s,.!?]+[A-Za-zÀ-ɏ]{3,})+")  # несколько латинских слов, а язык не распознан
+LATIN_SECTIONS = {"ОП": "OP", "ЖБ": "JB"}
+CYRILLIC_SECTION_RE = re.compile(r"(\d)\s*(ОП|ЖБ)\b")
 UNDER_REVIEW = "under_review"
 # С какой уверенности исход можно предложить админу. Подобрано на валидации: одна планка на всех пропускала
 # «оформлена неверно» с точностью около 30% и выбрасывала «одобрено» с точностью 85%. Остальные исходы
@@ -126,6 +130,10 @@ def triage_full(request: dict, verdict_override: str | None = None) -> tuple[dic
     if kind == "report" and lang in FOREIGN_HANDOFF:
         draft, meta["draft_source"] = handoff_draft(lang), "handoff"
         needs_human, reasons = True, reasons or ["нет шаблона на языке игрока"]
+    # Язык не распознан: русский шаблон игрок не поймёт. Админ видит автоперевод и отвечает сам.
+    if kind == "report" and lang == "und" and UNKNOWN_LANG_RE.search(text):
+        draft, meta["draft_source"] = handoff_draft("ru"), "handoff"
+        needs_human, reasons = True, reasons or ["язык игрока не распознан"]
     steps = first_steps(kind, category, text)
     article = knowledge.article(steps[1]) if steps else knowledge.find(text) if kind == "report" else None
     meta["article"] = article
@@ -246,6 +254,10 @@ def triage_full(request: dict, verdict_override: str | None = None) -> tuple[dic
         draft = {**draft, "text": CLOSED_RE.sub("", draft["text"]).strip()}
     if category in rag.NEEDS_CITATION:
         draft = with_citation(draft, rag.required(category, verdict, refs, draft["cited"]))
+    # Кириллица посреди латинского текста выглядит ошибкой. Поле cited не меняется: там канонический номер пункта.
+    if draft["lang"] in LATIN_LANGS:
+        text_latin = CYRILLIC_SECTION_RE.sub(lambda m: f"{m.group(1)} {LATIN_SECTIONS[m.group(2)]}", draft["text"])
+        draft = {**draft, "text": text_latin}
     # Предложение решения админ проверяет всегда, даже если остальным проверкам оно не интересно.
     if proposed and meta["draft_source"] != "handoff":
         needs_human = True

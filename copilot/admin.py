@@ -212,12 +212,13 @@ def api_diagnostics() -> dict:
 
 class TranslateRequest(BaseModel):
     text: str
+    lang: str | None = None
 
 
 @router.post("/api/translate")
 def api_translate(req: TranslateRequest) -> dict:
-    """Русский перевод для всех языков, кроме русского: админы в основном русскоязычные."""
-    return {"text": llm.translate(req.text)}
+    """Автоперевод на русский с оценкой 0–100: админы в основном русскоязычные, а носитель его не проверял."""
+    return llm.checked_translation(req.text, req.lang)
 
 
 class GenerateRequest(BaseModel):

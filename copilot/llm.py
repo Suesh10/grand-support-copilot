@@ -14,6 +14,7 @@ import re
 import threading
 import time
 from concurrent.futures import ThreadPoolExecutor
+from difflib import SequenceMatcher
 
 from . import config
 from .normalize import fix_mixed_script
@@ -31,6 +32,9 @@ PRICE_IN, PRICE_OUT = 0.30, 2.50
 
 LANG_NAMES = {"ru": "русском", "kk": "казахском (кириллица)", "uz": "узбекском (латиница)",
               "en": "английском", "es": "испанском", "pt": "португальском"}
+
+SAMPLE_CHARS = 80
+BACK_LANGS = {"kk": "казахский (кириллица)", "uz": "узбекский (латиница)", "en": "английский", "es": "испанский", "pt": "португальский"}
 
 SYSTEM = """Ты помощник администратора мобильной ролевой игры Grand Mobile. Пишешь ЧЕРНОВИК ответа игроку, его проверит администратор.
 
@@ -140,11 +144,28 @@ def _cache_write(key: str, value: dict) -> None:
         CACHE_PATH.write_text(json.dumps(cache, ensure_ascii=False), encoding="utf-8")
 
 
-def translate(text: str) -> str | None:
-    """Перевод на русский для админа (подсказка в интерфейсе). None — если LLM недоступен."""
+def translation_quality(original: str, back: str) -> int:
+    """Насколько обратный перевод совпал с оригиналом, 0–100. Это оценка: удачный пересказ тоже снижает её."""
+    clean = lambda s: " ".join(re.findall(r"\w+", s.casefold()))  # noqa: E731
+    return round(SequenceMatcher(None, clean(original), clean(back)).ratio() * 100)
+
+
+def checked_translation(text: str, lang: str | None) -> dict:
+    """Перевод на русский и его оценка. Качество None: обратный перевод не получился.
+
+    Язык, которого сервис не знает, обратно задаём образцом самого текста: название языка нам неизвестно.
+    """
+    russian = translate(text)
+    target = BACK_LANGS.get(lang or "", f"язык этого образца: «{text[:SAMPLE_CHARS]}»")
+    back = translate(russian, into=target) if russian else None
+    return {"text": russian, "quality": translation_quality(text, back) if back else None}
+
+
+def translate(text: str, into: str = "русский") -> str | None:
+    """Перевод для админа (подсказка в интерфейсе). None — если LLM недоступен."""
     if not enabled() or not text.strip():
         return None
-    contents = f"Переведи на русский. Ответь только переводом, без пояснений.\n\n{text[:800]}"
+    contents = f"Переведи на {into}. Ответь только переводом, без пояснений.\n\n{text[:800]}"
     key = _cache_key(contents, "")
     cached = _cache_read(key)
     if cached:

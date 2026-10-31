@@ -200,6 +200,18 @@ def test_no_article_is_better_than_a_wrong_one(text):
     assert knowledge.find(text) is None
 
 
+def test_uzbek_draft_has_no_cyrillic_section_but_cited_stays_exact():
+    text = "Bobur_Karimov cheat ishlatyapti, havoda uchib yuribdi, video bor"
+    resp = triage({"kind": "complaint", "rule_refs_raw": "5.2", "messages": [{"role": "player", "text": text, "attachments": 1}]})
+    assert resp["lang"] == "uz" and "ОП" not in resp["draft_reply"]["text"] and "5.2 OP" in resp["draft_reply"]["text"]
+    assert resp["draft_reply"]["cited"] == ["5.2"]
+
+
+def test_unknown_language_goes_to_human():
+    resp = triage({"kind": "report", "messages": [{"role": "player", "text": "merhaba, arabamı nasıl satabilirim?"}]})
+    assert resp["lang"] == "und" and resp["needs_human"] is True and resp["reasons"] == ["язык игрока не распознан"]
+
+
 def test_mass_outage_goes_to_human_without_asking_to_clarify():
     resp = triage({"kind": "report", "messages": [{"role": "player", "text": "сервер лежит, никто не может зайти"}]})
     assert resp["priority"] == "p0" and resp["needs_human"] is True

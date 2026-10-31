@@ -1,0 +1,16 @@
+# Проверка на чистой Linux-машине при каждой отправке. Данных кейса здесь нет: сервис работает на правилах,
+# поэтому тесты с данными пропускаются, а установка и запуск проверяются по-настоящему.
+name: check
+on: [push]
+jobs:
+  linux:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: make install
+      - run: make test
+      - run: make predict IN=examples/sample_tickets.jsonl OUT=out/pred.jsonl
+      - run: test "$(wc -l < out/pred.jsonl)" -eq "$(grep -c . examples/sample_tickets.jsonl)"
