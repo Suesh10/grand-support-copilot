@@ -17,10 +17,17 @@ CP1251_KK = str.maketrans({
 })
 
 KK_LETTERS = set("әғқңөұүһіӘҒҚҢӨҰҮҺІ")
+# «і» есть и в украинском, поэтому надёжны только остальные буквы.
+STRONG_KK = set("әғқңөұүһӘҒҚҢӨҰҮҺ")
+KK_SHARE = 0.06  # столько казахских букв в тексте случайно не наберётся
+SHORT_TEXT = 30  # в коротком тексте хватает одной казахской буквы, если нет русских слов
+SERVER_LANGS = {"kk", "uz"}  # язык сервера подсказывает ответ там, где текст ничего не говорит
 # Частые узбекские слова и буквосочетания в латинице.
 UZ_HINTS = re.compile(
     r"\b(men|menga|meni|uchun|qildi|bilan|nima|yoq|bor|iltimos|qoida|shikoyat|"
-    r"haqorat|sokdi|sokindi|sukindi|onadan|berizla|mani|qanday|nega|kerak|o['ʻ‘`]|g['ʻ‘`])", re.I)
+    r"haqorat|sokdi|sokindi|sukindi|onadan|berizla|mani|qanday|nega|kerak|o['ʻ‘`]|g['ʻ‘`]|"
+    r"yordam|chora|xaqorat|sababsiz|sababsz|besabab|berila|korila|ozidan|uzidan|bunga|kishan|boglab|"
+    r"sokvoti|sokinish|sokinib|sokib|kunga|oldirdi|qilaman|assalomu|nma)", re.I)
 RU_WORDS = re.compile(r"\b(что|чтоб|чтобы|как|это|меня|мне|вместо|прошу|когда|тут|уже|если|свою|его|он|она)\b", re.I)
 UK_WORDS = re.compile(r"\b(щоб|як|потрібно|дати|мене|будь ласка|чому)\b", re.I)
 KK_HINTS = re.compile(r"\b(мен|маған|сен|неге|жоқ|бар|көмек|өтінемін|қалай|ойын|ұрды)\b", re.I)
@@ -48,7 +55,13 @@ def normalize(text: str) -> str:
     return re.sub(r"\s+", " ", text).strip()
 
 
-def detect_lang(text: str) -> str:
+def detect_lang(text: str, server_lang: str | None = None) -> str:
+    """Язык текста, а если он не ясен, то казахский или узбекский по серверу."""
+    lang = _detect_lang(text)
+    return server_lang if lang == "und" and server_lang in SERVER_LANGS else lang
+
+
+def _detect_lang(text: str) -> str:
     """Грубая эвристика: ru | kk | uz | en | es | pt | und."""
     t = normalize(text)
     letters = [c for c in t if c.isalpha()]
@@ -56,10 +69,16 @@ def detect_lang(text: str) -> str:
         return "und"
     cyr = sum("а" <= c.lower() <= "я" or c.lower() == "ё" or c in KK_LETTERS for c in letters)
     if cyr / len(letters) > 0.5:
-        # Одна «қ» в русском тексте — опечатка на kz-сервере, украинский тоже идёт по-русски.
-        if RU_WORDS.search(t) or UK_WORDS.search(t):
+        # Украинский идёт по-русски. Доля букв важнее русских слов: «он» и «мен» есть в обоих языках.
+        strong = sum(c in STRONG_KK for c in t)
+        if UK_WORDS.search(t):
             return "ru"
-        if sum(c in KK_LETTERS for c in t) >= 2 or KK_HINTS.search(t):
+        if strong / len(letters) >= KK_SHARE:
+            return "kk"
+        # Одна «қ» в длинном русском тексте — опечатка на kz-сервере.
+        if RU_WORDS.search(t):
+            return "ru"
+        if (strong and len(letters) <= SHORT_TEXT) or sum(c in KK_LETTERS for c in t) >= 2 or KK_HINTS.search(t):
             return "kk"
         return "ru"
     # Узбекская латиница: oʻ, gʻ с особым апострофом внутри слова.

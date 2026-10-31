@@ -58,6 +58,7 @@ def appeal_from(t: dict) -> dict | None:
         return None
     return {"ticket_id": f"{t.get('ticket_id')}-appeal", "appeal_of": t.get("ticket_id"), "kind": "complaint",
             "messages": replies, "reported_hash": t.get("reported_hash"), "reported_nick": t.get("reported_nick"),
+            "server_lang": t.get("server_lang"), "region": t.get("region"),
             "attachments": [f for f in t.get("attachments") or [] if f.get("from") == "reported_player"]}
 
 

@@ -1,5 +1,6 @@
 """Главная функция: обращение → ответ по контракту POST /triage."""
 
+import logging
 import re
 
 from . import classify as clf
@@ -12,6 +13,7 @@ from .rules import filter_valid, short_ref
 ALWAYS_TEMPLATE = {"report.account", "report.payment"}
 
 
+log = logging.getLogger(__name__)
 REPLY_LANGS = {"kk", "uz", "en", "es", "pt"}
 UNDER_REVIEW = "under_review"
 VERDICT_CONFIDENCE = 0.6
@@ -68,7 +70,7 @@ def triage_full(request: dict, verdict_override: str | None = None) -> tuple[dic
     first_player = next((normalize(m.get("text", "")) for m in messages if m.get("role", "player") == "player"), text)
 
     rule_refs_raw = request.get("rule_refs_raw") or ""
-    lang = detect_lang(first_player)
+    lang = detect_lang(first_player, request.get("server_lang"))
     facts = extract(text, attachments, rule_refs_raw)
     if not facts["nickname"] and request.get("reported_nick"):
         facts["nickname"] = request["reported_nick"]
@@ -181,6 +183,26 @@ def triage_full(request: dict, verdict_override: str | None = None) -> tuple[dic
     return result, meta
 
 
+def fallback(request: dict) -> dict:
+    """Ответ по контракту при сбое: одно обращение не должно ронять весь прогон."""
+    kind = "complaint" if isinstance(request, dict) and request.get("kind") == "complaint" else "report"
+    return {
+        "lang": "und",
+        "category": "complaint.other" if kind == "complaint" else "report.question",
+        "priority": "p2",
+        "is_spam_or_duplicate": False,
+        "extracted": {"nickname": None, "rule_refs": [], "has_evidence": False, "server": None},
+        "draft_reply": handoff_draft("ru"),
+        "needs_human": True,
+        "confidence": 0.0,
+        "reasons": ["сбой обработки, обращение передано человеку"],
+    }
+
+
 def triage(request: dict) -> dict:
     """Ответ строго по контракту POST /triage."""
-    return triage_full(request)[0]
+    try:
+        return triage_full(request)[0]
+    except Exception:
+        log.exception("сбой обработки обращения")
+        return fallback(request)

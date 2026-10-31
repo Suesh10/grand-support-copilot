@@ -35,7 +35,7 @@ class Deduper:
         if reported:
             key, window = (reporter, "c", reported), WINDOW_COMPLAINT_H
         else:
-            text = normalize(" ".join(m.get("text", "") for m in ticket.get("messages", [])
+            text = normalize(" ".join(m.get("text") or "" for m in ticket.get("messages") or []
                                       if m.get("role") != "admin")).lower()
             if len(text) < MIN_REPORT_TEXT:
                 return False

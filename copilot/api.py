@@ -41,6 +41,7 @@ class TriageRequest(BaseModel):
     messages: list[Message]
     rule_refs_raw: str | None = None
     reported_nick: str | None = None
+    server_lang: str | None = None  # подсказка для коротких обращений, по которым язык не определить
     # Необязательные поля для отсева дублей: без них дубль не определяется.
     reporter_hash: str | None = None
     reported_hash: str | None = None

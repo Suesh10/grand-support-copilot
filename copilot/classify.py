@@ -9,9 +9,9 @@ import re
 
 from . import model
 from .labels import APPEAL_TEXT_RE, REPORT_RULES
+from .signals import HACK_RE, MASS_BUG_RE, PAYMENT_RE, THREAT_RE
 
 CRITICAL_REPORT = {"report.account", "report.payment"}
-P0_RE = re.compile(r"взлом|украл[иа]? акк|убью|найду тебя|суицид|у всех|массов|сервер упал|никто не может", re.I)
 
 KEYWORDS = {
     "complaint.cheat": r"чит|soft|софт|аим|aim|wh\b|вх\b|летает|спидхак|cheat|hack",
@@ -67,6 +67,10 @@ def classify(kind: str, text: str, has_evidence: bool, rule_refs_raw: str = "") 
                 if cat in CRITICAL_REPORT and rx.search(text):
                     category, conf = cat, max(conf, 0.7)
                     break
+            if HACK_RE.search(text):
+                category, conf = "report.account", max(conf, 0.7)
+            elif PAYMENT_RE.search(text) and category != "report.account":
+                category, conf = "report.payment", max(conf, 0.7)
     else:
         for cat, pattern in KEYWORDS.items():
             if cat.split(".")[0] != kind and not (kind == "report" and cat.startswith("complaint")):
@@ -86,6 +90,6 @@ def classify(kind: str, text: str, has_evidence: bool, rule_refs_raw: str = "") 
     # Жалоба с доказательствами на серьёзное нарушение — высокий приоритет.
     if kind == "complaint" and has_evidence and category in ("complaint.cheat", "complaint.scam", "complaint.rmt_ads"):
         priority = "p1"
-    if P0_RE.search(t):
+    if HACK_RE.search(t) or THREAT_RE.search(t) or MASS_BUG_RE.search(t):
         priority = "p0"
     return category, priority, conf

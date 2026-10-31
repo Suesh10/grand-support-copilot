@@ -13,6 +13,7 @@
 import re
 
 from .rules import parse_refs
+from .signals import APPEAL_WORLD
 
 # Пункт правил → категория (taxonomy.json + тексты пунктов rules.json).
 REF_CATEGORY = {
@@ -53,7 +54,8 @@ APPEAL_TEXT_RE = re.compile(
     r"понимаю,? что (сотворил|совершил|был неправ|ошиб)|посадил\w*.{0,25}просто так|где софт у меня|"
     # жалоба на поведение администратора
     r"(адм\w*|admin\w*|администрац\w*)\b.{0,50}(не следит|ничего не делает|просто следят?|неправильно|"
-    r"неадекват|hech nima qilmay|suiste|huquq)|неправильно отвечает|(rep|репорт)\w*\s+javob|ангажир|\bблат",
+    r"неадекват|hech nima qilmay|suiste|huquq)|неправильно отвечает|(rep|репорт)\w*\s+javob|ангажир|\bблат|"
+    + APPEAL_WORLD,
     re.I | re.M)
 
 REPORT_RULES = [

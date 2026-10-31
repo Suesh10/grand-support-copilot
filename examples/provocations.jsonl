@@ -1,0 +1,26 @@
+{"name": "kk взлом", "kind": "report", "text": "аккаунтымды бұзып алды кіре алмаймын", "human": true, "priority": "p0"}
+{"name": "kk взлом, пароль", "kind": "report", "text": "аккаунтым бұзылды құпия сөзді өзгертті", "human": true, "priority": "p0"}
+{"name": "kk платёж", "kind": "report", "text": "төлем жасадым бірақ ақша түспеді", "human": true, "priority": "p0"}
+{"name": "kk платёж, возврат", "kind": "report", "text": "гк сатып алдым келмеді ақшамды қайтарыңыз", "human": true, "priority": "p0"}
+{"name": "kk апелляция", "kind": "complaint", "text": "маған бан бердіңіз неге, бәрі қате, банды алып тастаңыз", "human": true, "category": "complaint.admin"}
+{"name": "kk угроза", "kind": "report", "text": "сені табамын өлтіремін", "human": true, "priority": "p0"}
+{"name": "uz взлом", "kind": "report", "text": "akkauntimni buzishdi parolni ozgartirishdi", "human": true, "priority": "p0"}
+{"name": "uz платёж", "kind": "report", "text": "tolov qildim pul tushmadi donat kelmadi", "human": true, "priority": "p0"}
+{"name": "uz платёж, списание", "kind": "report", "text": "pul yechildi lekin hech narsa kelmadi", "human": true, "priority": "p0"}
+{"name": "uz апелляция", "kind": "complaint", "text": "bandan chiqaring men hech narsa qilmadim nohaq ban berishdi", "human": true, "category": "complaint.admin"}
+{"name": "uz угроза", "kind": "report", "text": "seni topib olaman oldiraman", "human": true, "priority": "p0"}
+{"name": "en взлом", "kind": "report", "text": "my account was stolen someone changed my password", "human": true, "priority": "p0"}
+{"name": "en платёж", "kind": "report", "text": "i paid but did not receive my coins", "human": true, "priority": "p0"}
+{"name": "en апелляция", "kind": "complaint", "text": "i was banned for no reason please unban me", "human": true, "category": "complaint.admin"}
+{"name": "es взлом", "kind": "report", "text": "me robaron la cuenta cambiaron la contraseña", "human": true, "priority": "p0"}
+{"name": "es платёж", "kind": "report", "text": "pagué y no recibí mis monedas, devuélvanme el dinero", "human": true, "priority": "p0"}
+{"name": "pt взлом", "kind": "report", "text": "roubaram minha conta mudaram a senha", "human": true, "priority": "p0"}
+{"name": "pt платёж", "kind": "report", "text": "paguei e não recebi, quero reembolso", "human": true, "priority": "p0"}
+{"name": "ru взлом", "kind": "report", "text": "взломали аккаунт, сменили пароль, пропала машина", "human": true, "priority": "p0"}
+{"name": "ru платёж", "kind": "report", "text": "оплатил гк, не пришло", "human": true, "priority": "p0"}
+{"name": "ru угроза", "kind": "report", "text": "я тебя найду тебя в реале убью", "human": true, "priority": "p0"}
+{"name": "нарушение, не взлом (kk)", "kind": "report", "text": "ол ережені бұзды", "not_priority": "p0"}
+{"name": "нарушение, не взлом (uz)", "kind": "report", "text": "u qoidani buzdi", "not_priority": "p0"}
+{"name": "игровые деньги, не платёж (kk)", "kind": "report", "text": "маған ақша беріңізші", "not_priority": "p0"}
+{"name": "игровые деньги, не платёж (uz)", "kind": "report", "text": "menga pul bering", "not_priority": "p0"}
+{"name": "у всех на глазах, не сбой", "kind": "complaint", "text": "оскорбил меня у всех на глазах", "not_priority": "p0"}

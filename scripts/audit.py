@@ -23,6 +23,7 @@ from copilot.pipeline import triage_full  # noqa: E402
 from copilot.predict import ticket_to_request  # noqa: E402
 from copilot.rag import NEEDS_CITATION  # noqa: E402
 from copilot.rules import is_contract_ref  # noqa: E402
+from copilot.signals import APPEAL_RE, HACK_RE, PAYMENT_RE  # noqa: E402
 
 TAXONOMY = json.loads(config.TAXONOMY_PATH.read_text(encoding="utf-8"))
 CATEGORIES = {c["code"] for c in TAXONOMY["categories"]}
@@ -35,9 +36,6 @@ LEFTOVER_RE = re.compile(r"<(url|digits|email|handle|nick)>|#\s*\d|\{\w*\}|\bи�
 TERM_RE = re.compile(r"\b\d+\s*(минут|мин|час|дн|день|дня|дней|kun|daqiqa|күн|минут)", re.I)
 DECISION_RE = re.compile(r"одобрен|отклонен|закрыто|рассмотрена и|rad etildi|tasdiqlandi|yopildi|мақұлданды|қабылданбады", re.I)
 OPEN_RE = re.compile(r"будет рассмотрен|передан\w* администрац|на рассмотрение|ожидайте|ko'rib chiqiladi|yuborildi|жіберілді", re.I)
-PAY_RE = re.compile(r"донат|оплат|платеж|платёж|списал|верните деньги|refund", re.I)
-HACK_RE = re.compile(r"взлом|украли акк|сменили пароль|hacked", re.I)
-APPEAL_RE = re.compile(r"разбан|снимите (бан|наказ)|не согласен с наказ|апелляц", re.I)
 
 
 def cyrillic_share(text: str) -> float:
@@ -97,7 +95,7 @@ def check(t: dict, r: dict, meta: dict) -> list[tuple[str, str, str]]:
         bad("ERROR", "наказание обещано без needs_human", text[:80])
     if r.get("category") in ALWAYS_HUMAN and not r.get("needs_human"):
         bad("ERROR", "категория всегда для человека ушла в авто", r.get("category"))
-    for name, rx in (("платёж", PAY_RE), ("взлом", HACK_RE), ("апелляция", APPEAL_RE)):
+    for name, rx in (("платёж", PAYMENT_RE), ("взлом", HACK_RE), ("апелляция", APPEAL_RE)):
         if rx.search(player) and not r.get("needs_human"):
             bad("ERROR", f"{name} ушёл в авто", player[:80])
     if r.get("needs_human") and not r.get("reasons"):
@@ -149,6 +147,17 @@ def check(t: dict, r: dict, meta: dict) -> list[tuple[str, str, str]]:
     return out
 
 
+def check_provocations(found: dict) -> None:
+    """Придуманные опасные обращения на всех языках: данные проверяются отдельно от слов защиты."""
+    for line in (ROOT / "examples" / "provocations.jsonl").open(encoding="utf-8"):
+        p = json.loads(line)
+        r, _ = triage_full({"kind": p["kind"], "messages": [{"role": "player", "text": p["text"]}]})
+        wrong = ("human" in p and r["needs_human"] != p["human"]) or ("priority" in p and r["priority"] != p["priority"]) \
+            or ("not_priority" in p and r["priority"] == p["not_priority"]) or ("category" in p and r["category"] != p["category"])
+        if wrong:
+            found[("ERROR", "провокация пропущена")].append((p["name"], p["text"], r["draft_reply"]["text"][:200]))
+
+
 def opinion(found: dict, total: int) -> None:
     """Мнение проверяющего: выводы только из результатов проверки и из того, что он не может измерить."""
     count = lambda code: sum(len(v) for (_, c), v in found.items() if c == code)  # noqa: E731
@@ -198,6 +207,7 @@ def main() -> None:
         for level, code, detail in check(t, result, meta):
             found[(level, code)].append((t["ticket_id"], detail, result["draft_reply"]["text"][:200]))
 
+    check_provocations(found)
     errors = sum(len(v) for (lvl, _), v in found.items() if lvl == "ERROR")
     warns = sum(len(v) for (lvl, _), v in found.items() if lvl == "WARN")
     print(f"Обращений: {len(tickets)} · ошибок: {errors} · предупреждений: {warns}\n")

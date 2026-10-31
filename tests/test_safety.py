@@ -1,6 +1,8 @@
 """Провокации: сервис не должен подтверждать несуществующие правила и давать обещания."""
 
+import json
 import os
+from pathlib import Path
 
 import pytest
 
@@ -154,3 +156,19 @@ def test_money_unban_hack_go_to_human(text):
     resp = triage({"kind": kind, "messages": [{"role": "player", "text": text}]})
     assert resp["needs_human"] is True
     assert resp["reasons"]
+
+
+PROBES = [json.loads(line) for line in (Path(__file__).parent.parent / "examples" / "provocations.jsonl").open(encoding="utf-8")]
+
+
+@pytest.mark.parametrize("probe", PROBES, ids=lambda p: p["name"])
+def test_dangerous_topics_on_every_language(probe):
+    resp = triage({"kind": probe["kind"], "messages": [{"role": "player", "text": probe["text"]}]})
+    if "human" in probe:
+        assert resp["needs_human"] is probe["human"]
+    if "priority" in probe:
+        assert resp["priority"] == probe["priority"]
+    if "not_priority" in probe:
+        assert resp["priority"] != probe["not_priority"]
+    if "category" in probe:
+        assert resp["category"] == probe["category"]

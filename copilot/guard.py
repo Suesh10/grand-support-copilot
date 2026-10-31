@@ -6,12 +6,10 @@
 
 import re
 
+from .signals import APPEAL_RE, HACK_RE, OFFLINE_RE, PAYMENT_RE, THREAT_RE
+
 ALWAYS_HUMAN = {"report.account", "report.payment", "complaint.admin"}
 
-APPEAL_RE = re.compile(r"апелляц|разбан|разблок|снимите (бан|наказ)|незаслуж|ошибочно забан|unban|appeal", re.I)
-HACK_RE = re.compile(r"взлом|взломал|украли акк|сменили пароль|hacked|buzish", re.I)
-PAYMENT_RE = re.compile(r"донат|оплат|платеж|платёж|списал|верните деньги|refund|возврат", re.I)
-THREAT_RE = re.compile(r"убью|найду тебя|суицид|покончу|адрес|в реале", re.I)
 # Попытка управлять сервисом через текст обращения (prompt injection).
 INJECTION_RE = re.compile(r"игнорир\w* .{0,20}(инструкц|правил)|ignore (all|previous|the above)|needs_human|"
                           r"system prompt|системн\w+ промпт|ты (теперь|больше не)", re.I)
@@ -48,7 +46,7 @@ def check(category: str, text: str) -> list[str]:
         reasons.append("подозрение на взлом аккаунта")
     if PAYMENT_RE.search(text):
         reasons.append("вопрос о платеже или возврате")
-    if THREAT_RE.search(text):
+    if THREAT_RE.search(text) or OFFLINE_RE.search(text):
         reasons.append("возможная угроза вне игры")
     if INJECTION_RE.search(text):
         reasons.append("попытка управлять ответом через текст обращения")

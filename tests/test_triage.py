@@ -1,5 +1,9 @@
+import json
+
+import pytest
 from fastapi.testclient import TestClient
 
+from copilot import pipeline, predict
 from copilot.api import app
 from copilot.normalize import detect_lang, normalize
 from copilot.rules import filter_valid, parse_refs
@@ -29,6 +33,20 @@ def test_contract_example_from_tz():
 def test_cp1251_kazakh_letters_restored():
     assert normalize("ќалай кґмек") == "қалай кғмек"
     assert detect_lang("маѕан кґмектесіѕізші") == "kk"
+
+
+@pytest.mark.parametrize("text,server,lang", [
+    ("қайда", None, "kk"),  # короткий текст, одна казахская буква
+    ("он маған қарсы келді, ақша бермеді, ол мені алдады", None, "kk"),  # «он» не делает текст русским
+    ("сегодня он меня оскорбил в чате, это қ случайно попала в текст, прошу разобраться", None, "ru"),
+    ("допоможіть будь ласка", None, "ru"),
+    ("sababsiz ban berildi", None, "uz"),
+    ("salom", "uz", "uz"),  # текст не говорит ничего, сервер подсказывает
+    ("salom", None, "und"),
+    ("помогите", "uz", "ru"),  # русский текст на узбекском сервере остаётся русским
+])
+def test_language_of_short_and_mixed_texts(text, server, lang):
+    assert detect_lang(text, server) == lang
 
 
 def test_bare_rule_number_defaults_to_general_rules():
@@ -82,3 +100,31 @@ def test_duplicate_flag_reaches_contract():
     body = client.post("/triage", json={"kind": "complaint", "reporter_hash": "x", "reported_hash": "y",
                                         "messages": [{"text": "оскорбил меня, скрин", "attachments": 1}]}).json()
     assert body["is_spam_or_duplicate"] is True
+
+
+def test_predict_survives_broken_lines(tmp_path, monkeypatch):
+    src = tmp_path / "in.jsonl"
+    out = tmp_path / "out.jsonl"
+    lines = [
+        json.dumps({"ticket_id": "ok", "kind": "report", "messages": [{"role": "player", "text": "застрял в текстурах"}]}),
+        "{битый json",
+        "[1, 2]",
+        json.dumps({"ticket_id": "null-text", "kind": "report", "reporter_hash": "a", "messages": [{"role": "player", "text": None}]}),
+        json.dumps({"ticket_id": "no-messages", "kind": "complaint", "messages": None}),
+        json.dumps({"ticket_id": "bad-images", "kind": "complaint", "images_count": "много", "messages": [{"role": "player", "text": "скрин"}]}),
+    ]
+    src.write_text("\n".join(lines), encoding="utf-8")
+    monkeypatch.setattr("sys.argv", ["predict", "--in", str(src), "--out", str(out)])
+    predict.main()
+    rows = [json.loads(line) for line in out.read_text(encoding="utf-8").splitlines()]
+    assert [r["ticket_id"] for r in rows] == ["ok", "null-text", "no-messages", "bad-images"]
+    assert all({"lang", "category", "priority", "draft_reply", "needs_human"} <= set(r) for r in rows)
+    assert rows[3]["needs_human"] is True
+
+
+def test_failure_returns_contract_for_human(monkeypatch):
+    def boom(_):
+        raise RuntimeError("сбой")
+    monkeypatch.setattr(pipeline, "triage_full", boom)
+    resp = pipeline.triage({"kind": "complaint", "messages": [{"text": "x"}]})
+    assert resp["needs_human"] is True and resp["category"] == "complaint.other" and resp["reasons"]
