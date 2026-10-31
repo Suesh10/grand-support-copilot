@@ -52,8 +52,18 @@ def _client():
     return genai.Client(api_key=config.GEMINI_API_KEY)
 
 
+def _shared_client():
+    """Один клиент на процесс: второй, созданный параллельно, закрыл бы первый прямо во время запроса."""
+    global _CLIENT
+    with _client_lock:
+        if _CLIENT is None:
+            _CLIENT = _client()
+        return _CLIENT
+
+
 log = logging.getLogger(__name__)
 _CLIENT = None
+_client_lock = threading.Lock()
 _POOL = ThreadPoolExecutor(max_workers=8)
 TIMEOUT_S = 4.0  # сервис: p95 по ТЗ не больше 5 с
 ATTEMPTS = 1
@@ -129,7 +139,6 @@ def _cache_write(key: str, value: dict) -> None:
 
 def translate(text: str) -> str | None:
     """Перевод на русский для админа (подсказка в интерфейсе). None — если LLM недоступен."""
-    global _CLIENT
     if not enabled() or not text.strip():
         return None
     contents = f"Переведи на русский. Ответь только переводом, без пояснений.\n\n{text[:800]}"
@@ -138,8 +147,7 @@ def translate(text: str) -> str | None:
     if cached:
         return cached["text"]
     try:
-        _CLIENT = _CLIENT or _client()
-        future = _POOL.submit(_CLIENT.models.generate_content, model=config.LLM_MODEL, contents=contents)
+        future = _POOL.submit(_shared_client().models.generate_content, model=config.LLM_MODEL, contents=contents)
         translated = future.result(timeout=TIMEOUT_S).text.strip()
     except Exception as e:  # noqa: BLE001
         _mark(e)
@@ -201,7 +209,6 @@ def draft(kind: str, lang: str, category: str, verdict: str | None, text: str,
           nickname: str | None, refs: list[str], examples: list[str], decided: bool = False,
           proposed: bool = False) -> dict | None:
     """Черновик от LLM или None при ошибке/таймауте. В ответе есть служебное поле _meta."""
-    global _CLIENT
     if not enabled():
         return None
     from google.genai import types
@@ -213,11 +220,11 @@ def draft(kind: str, lang: str, category: str, verdict: str | None, text: str,
     if cached:
         return _parse(cached["text"], refs, lang, cached["tokens_in"], cached["tokens_out"], started)
     try:
-        _CLIENT = _CLIENT or _client()
+        client = _shared_client()
         for attempt in range(ATTEMPTS):
             try:
                 future = _POOL.submit(
-                    _CLIENT.models.generate_content,
+                    client.models.generate_content,
                     model=config.LLM_MODEL,
                     contents=prompt,
                     config=types.GenerateContentConfig(

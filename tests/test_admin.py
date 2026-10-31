@@ -347,3 +347,23 @@ def test_every_player_has_a_mini_profile():
     assert rare["against_total"] == 1 and rare["comment"] == "Обращений мало, выводы делать рано."
     assert reputation.profile("no-such-player") is None  # выводы по-прежнему только при достаточной истории
     assert all(x["profiles"]["reporter"] for x in client.get("/api/queue").json()["items"])
+
+
+def test_only_one_llm_client_under_parallel_load(monkeypatch):
+    import threading
+    import time
+    made = []
+
+    def build():
+        time.sleep(0.02)
+        made.append(object())
+        return made[-1]
+
+    monkeypatch.setattr(llm, "_CLIENT", None)
+    monkeypatch.setattr(llm, "_client", build)
+    threads = [threading.Thread(target=llm._shared_client) for _ in range(8)]
+    for t in threads:
+        t.start()
+    for t in threads:
+        t.join()
+    assert len(made) == 1
