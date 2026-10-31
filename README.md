@@ -15,7 +15,7 @@
 | Запустить за 3 команды | [Как запустить](#как-запустить) |
 | Проверить контракт из ТЗ | `POST /triage` и `make predict`, там же |
 | Увидеть метрики и честные оговорки | [docs/REPORT.md](docs/REPORT.md) |
-| Посмотреть все функции на примерах | [docs/examples.md](docs/examples.md) |
+| Посмотреть все функции на примерах | [docs/examples.md](docs/examples.md), страница [docs/examples.html](docs/examples.html) |
 | Понять устройство | [Как это устроено](#как-это-устроено) |
 | Открыть интерфейс админа | `make serve`, затем `/admin` |
 
@@ -95,7 +95,7 @@ curl -X POST localhost:8000/triage -H "Content-Type: application/json" -d '{"kin
 |---|---|
 | `make train` | обучает модели, строит индекс похожих случаев и предложения шаблонов |
 | `make eval` | считает отчёт на валидации: метрики, стоимость, p95 |
-| `make examples` | пересобирает `docs/examples.md` |
+| `make examples` | пересобирает `docs/examples.md` и `docs/examples.html` |
 | `make audit` | построчная проверка ответов по ТЗ и провокации на 6 языках; `AUDIT_LLM=100` пропустит 100 обращений через LLM |
 | `make review` | готовит слепую оценку: черновики рядом с реальными ответами, вкладка в интерфейсе |
 | `make test DATA=/путь/к/handout` | запускает тесты, без данных они пропускаются |

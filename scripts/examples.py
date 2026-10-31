@@ -1,10 +1,13 @@
 """Примеры черновиков для отчёта: make examples
 
 Обращения придуманы командой (не из выгрузки Grand Mobile), поэтому их можно
-публиковать. Результат — docs/examples.md.
+публиковать. Результат — docs/examples.md и docs/examples.html (один файл, открывается без сервера).
 """
 
+import base64
+import html
 import json
+import re
 import sys
 from pathlib import Path
 
@@ -91,6 +94,101 @@ FEATURES = [
 ]
 
 
+TYPE_NAMES = {
+    "complaint.insult": "Оскорбления", "complaint.cheat": "Читы", "complaint.dm": "Убийство без повода",
+    "complaint.scam": "Обман", "complaint.rmt_ads": "Реклама и продажа", "complaint.admin": "Апелляции и админы",
+    "complaint.other": "Другие жалобы", "complaint.invalid": "Неоформленные", "report.question": "Вопросы",
+    "report.help": "Помощь", "report.complaint": "Жалобы из игры", "report.account": "Аккаунт и взлом",
+    "report.payment": "Платежи", "report.offtopic": "Оффтоп",
+}
+PRIORITY_NAMES = {"p0": "Критично", "p1": "Срочно", "p2": "Обычно", "p3": "Вопрос"}
+SOURCE_NAMES = {"llm": "Gemini", "proposal": "шаблон решения", "template": "шаблон", "retrieval": "похожий ответ админа",
+                "handoff": "передача человеку", "lesson": "правка админа"}
+PAGE_CSS = """
+:root { color-scheme: dark; --sky: #111214; --paper: #1A1C1F; --raised: #25282C; --line: #3A3E44; --text: #F2F3F5;
+  --muted: #A6ACB5; --accent: #E0B414; --p0: #FF7A66; --p1: #F5A53A; --p2: #C9B8F0; --p3: #7DB7F0; --ok: #5FCF9A; }
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--sky); color: var(--text); font: 16px/1.6 system-ui, "Segoe UI", sans-serif; }
+main { max-width: 920px; margin: 0 auto; padding: 32px 16px 64px; }
+h1 { font-size: 34px; line-height: 1.2; margin: 0 0 8px; } h2 { font-size: 24px; margin: 48px 0 16px; } h3 { font-size: 19px; margin: 0; }
+p { margin: 0 0 12px; } a { color: var(--accent); } .lead { color: var(--muted); font-size: 18px; }
+code { font: 14px Consolas, monospace; background: var(--raised); padding: 1px 6px; border-radius: 2px; }
+.table { overflow-x: auto; border: 1px solid var(--line); border-radius: 2px; }
+table { border-collapse: collapse; width: 100%; min-width: 620px; font-size: 15px; }
+th, td { text-align: left; vertical-align: top; padding: 10px 12px; border-bottom: 1px solid var(--line); }
+th { color: var(--muted); font-weight: 600; background: var(--paper); } tr:last-child td { border-bottom: 0; }
+figure { margin: 16px 0 24px; } figcaption { color: var(--muted); margin-bottom: 8px; }
+img { display: block; max-width: 100%; height: auto; border: 1px solid var(--line); border-radius: 2px; }
+.card { background: var(--paper); border: 1px solid var(--line); border-radius: 2px; padding: 20px; margin: 0 0 16px; min-width: 0; }
+.head { display: flex; flex-wrap: wrap; gap: 8px 12px; align-items: center; margin-bottom: 12px; }
+.badge { color: #111214; font-size: 14px; font-weight: 700; padding: 2px 10px; border-radius: 2px; white-space: nowrap; }
+.p0 { background: var(--p0); } .p1 { background: var(--p1); } .p2 { background: var(--p2); } .p3 { background: var(--p3); }
+.label { color: var(--muted); font-size: 14px; margin: 14px 0 4px; }
+.player { font-size: 18px; overflow-wrap: anywhere; margin: 0; }
+.draft { background: var(--sky); border-left: 3px solid var(--accent); padding: 12px 14px; white-space: pre-line; overflow-wrap: anywhere; margin: 0; }
+.chips { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 14px; }
+.chip { background: var(--raised); border-radius: 2px; padding: 2px 10px; font-size: 14px; }
+.human { color: var(--p1); font-weight: 600; } .auto { color: var(--ok); font-weight: 600; }
+details { margin-top: 14px; color: var(--muted); font-size: 15px; } summary { cursor: pointer; min-height: 32px; }
+pre { background: var(--sky); color: var(--text); padding: 12px; overflow-x: auto; font: 13px/1.5 Consolas, monospace; margin: 8px 0 0; }
+"""
+
+
+def inline_code(text: str) -> str:
+    return re.sub(r"`([^`]+)`", r"<code>\1</code>", html.escape(text))
+
+
+def picture(name: str, caption: str) -> str:
+    data = base64.b64encode((ROOT / "docs" / name).read_bytes()).decode()
+    return f'<figure><figcaption>{html.escape(caption)}</figcaption><img src="data:image/jpeg;base64,{data}" alt="{html.escape(caption)}"></figure>'
+
+
+def card(title: str, req: dict, resp: dict, meta: dict) -> str:
+    message = req["messages"][0]
+    draft, priority = resp["draft_reply"], resp["priority"]
+    files = int(message.get("attachments") or 0)
+    chips = [f"Вид: {TYPE_NAMES.get(resp['category'], resp['category'])}", f"Язык: {resp['lang'].upper()}",
+             f"Ответ написал: {SOURCE_NAMES.get(meta.get('draft_source'), 'шаблон')}"]
+    if files:
+        chips.append(f"Вложений: {files}")
+    if resp["is_spam_or_duplicate"]:
+        chips.append("Спам или дубль")
+    if draft["cited"]:
+        chips.append("Пункты правил: " + ", ".join(draft["cited"]))
+    verdict = (f'<p class="human">Нужен человек: {html.escape("; ".join(resp["reasons"]))}.</p>' if resp["needs_human"]
+               else '<p class="auto">Сервис отвечает сам, человек не нужен.</p>')
+    raw = html.escape(json.dumps({"запрос": req, "ответ": resp}, ensure_ascii=False, indent=2))
+    return f"""<article class="card">
+<div class="head"><span class="badge {priority}">{priority.upper()} · {PRIORITY_NAMES[priority]}</span><h3>{html.escape(title)}</h3></div>
+<p class="label">Игрок написал</p><p class="player">{html.escape(message["text"])}</p>
+<p class="label">Черновик ответа</p><p class="draft">{html.escape(draft["text"])}</p>
+<div class="chips">{"".join(f'<span class="chip">{html.escape(c)}</span>' for c in chips)}</div>
+<p class="label">Решение сервиса</p>{verdict}
+<details><summary>Показать полный ответ сервиса</summary><pre>{raw}</pre></details>
+</article>"""
+
+
+def render_page(cards: list[str]) -> str:
+    rows = "".join(f"<tr><td>{html.escape(what)}</td><td>{inline_code(where)}</td><td>{html.escape(how)}</td></tr>"
+                   for what, where, how in FEATURES)
+    return f"""<!doctype html>
+<html lang="ru"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Support Copilot: примеры</title><style>{PAGE_CSS}</style></head>
+<body><main>
+<h1>Support Copilot: что умеет сервис</h1>
+<p class="lead">Сервис разбирает обращения игроков Grand Mobile и готовит черновик ответа. Решения о наказаниях принимает человек. Все обращения здесь придуманы командой, а ответы настоящие.</p>
+<h2>Функции и где их увидеть</h2>
+<p>Запустите <code>make serve</code> и откройте <code>http://localhost:8000/admin</code>: в очереди 29 примеров, у каждого написано, что он показывает.</p>
+<div class="table"><table><thead><tr><th>Функция</th><th>Пример</th><th>Где смотреть</th></tr></thead><tbody>{rows}</tbody></table></div>
+<h2>Интерфейс администратора</h2>
+{picture("demo_profile.jpg", "Мини-профиль: наведение на зону игрока показывает его историю обращений.")}
+{picture("demo_proof.jpg", "Доказательства: наведение показывает файл, клик открывает его целиком.")}
+<h2>Ответы сервиса</h2>
+{"".join(cards)}
+</main></body></html>
+"""
+
+
 def main() -> None:
     sys.stdout.reconfigure(encoding="utf-8")
     out = ["# Примеры работы Support Copilot", "",
@@ -103,8 +201,10 @@ def main() -> None:
            "![Мини-профиль игрока](demo_profile.jpg)", "",
            "Доказательства: наведение показывает файл, клик открывает его целиком.", "",
            "![Предпросмотр доказательства](demo_proof.jpg)", "", "## Ответы сервиса", ""]
+    cards = []
     for title, req in EXAMPLES:
         resp, meta = triage_full(req)
+        cards.append(card(title, req, resp, meta))
         out += [f"## {title}", "", "**Запрос**", "```json", json.dumps(req, ensure_ascii=False, indent=2), "```", "",
                 f"**Ответ** (источник черновика: `{meta.get('draft_source')}`"
                 + (f", {meta['latency_s']:.2f} с, ${meta['cost_usd']:.5f}" if meta.get("cost_usd") else "") + ")",
@@ -113,7 +213,9 @@ def main() -> None:
     path = ROOT / "docs" / "examples.md"
     path.parent.mkdir(exist_ok=True)
     path.write_text("\n".join(out), encoding="utf-8")
-    print(f"→ {path}")
+    page = path.with_suffix(".html")
+    page.write_text(render_page(cards), encoding="utf-8")
+    print(f"→ {path}, {page}")
 
 
 if __name__ == "__main__":
