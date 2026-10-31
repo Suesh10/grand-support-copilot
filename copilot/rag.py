@@ -30,6 +30,7 @@ NEEDS_CITATION = set(PRIMARY_REFS)
 MIN_SCORE = 0.08
 HOME_RE = re.compile(r"\bдом|\bквартир|\buy\b|\buyga\b|үй", re.I)
 LEFT_RP_RE = re.compile(r"уш[её]л от рп|вышел из игры|ливнул|\bлив\b|покинул", re.I)
+ROPE_RE = re.compile(r"вер[её]вк|связа|связк|мешок|мешк|наручн|похит|ограб", re.I)
 GZ_RE = re.compile(r"\bgz\b|\bzz\b|\bзз\b|\bгз\b|зел[её]н|yashil", re.I)
 
 
@@ -85,6 +86,8 @@ def candidates(category: str, verdict: str | None, text: str, player_refs: list[
     ranked = [
         VERDICT_REFS.get(verdict or ""),
         "2.6 ОП" if category == "complaint.insult" and THREAT_RE.search(text) else None,  # пункт об угрозах, а не об оскорблении
+        # Верёвка в зелёной зоне это криминальное действие, а не убийство: так решают админы.
+        "1.2 GZ" if category == "complaint.dm" and GZ_RE.search(text) and ROPE_RE.search(text) else None,
         *[r for r in player_refs if REF_CATEGORY.get(r) == category],
         *fits,
         PRIMARY_REFS.get(category),

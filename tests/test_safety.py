@@ -220,6 +220,34 @@ def test_review_draft_names_the_topic_only_when_sure():
     assert "по поводу" not in proposal_draft("uz", "complaint.cheat", "under_review", "Timur_Volkov", ["5.2 ОП"], "читы", True)["text"]
 
 
+def test_rope_in_green_zone_cites_the_rule_about_crime():
+    resp = triage({"kind": "complaint", "rule_refs_raw": "ЗЗ", "messages": [{"role": "player", "text": "связка в зз, надел верёвку на авторынке", "attachments": 1}]})
+    assert "1.2" in resp["draft_reply"]["cited"]
+
+
+def test_complaint_with_too_little_evidence_gets_low_priority():
+    from copilot import pipeline
+    text = "оскорбил в чате"
+    req = {"kind": "complaint", "messages": [{"role": "player", "text": text, "attachments": 1}]}
+    original = pipeline.likely_verdict
+    pipeline.likely_verdict = lambda *a, **k: "need_evidence"
+    try:
+        assert triage(req)["priority"] == "p3"
+    finally:
+        pipeline.likely_verdict = original
+
+
+def test_threat_stays_critical_even_with_too_little_evidence():
+    from copilot import pipeline
+    req = {"kind": "complaint", "messages": [{"role": "player", "text": "написал найду тебя и убью", "attachments": 1}]}
+    original = pipeline.likely_verdict
+    pipeline.likely_verdict = lambda *a, **k: "need_evidence"
+    try:
+        assert triage(req)["priority"] == "p0"
+    finally:
+        pipeline.likely_verdict = original
+
+
 def test_mass_outage_goes_to_human_without_asking_to_clarify():
     resp = triage({"kind": "report", "messages": [{"role": "player", "text": "сервер лежит, никто не может зайти"}]})
     assert resp["priority"] == "p0" and resp["needs_human"] is True

@@ -264,6 +264,9 @@ def triage_full(request: dict, verdict_override: str | None = None) -> tuple[dic
         needs_human = True
         reasons.append(PROPOSAL_REASON)
         meta["proposal"] = verdict
+        # Таксономия: жалоба без достаточных доказательств это P3. Читы и обман (P1) не трогаем: пропустить их дороже.
+        if verdict == "need_evidence" and priority == "p2":
+            priority = "p3"
 
     # Внутри пункт однозначен («2.1 ОП»), наружу по контракту идёт points[].ref из rules.json («2.1»).
     meta["cited_full"], meta["rule_refs_full"] = draft["cited"], facts["rule_refs"]
