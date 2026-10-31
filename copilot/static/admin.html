@@ -878,7 +878,9 @@ function setChip(t, chip) {
 
 function App() {
   const [s, setS] = useState({ tickets: TICKETS, sent: 0, escalated: 0, clean: 0, autoChecked: [], rulesRead: false });
-  const [activeId, setActiveId] = useState(TICKETS[0] ? TICKETS[0].id : null);
+  /* Прямая ссылка на обращение: /admin#demo-11. Её можно передать коллеге. */
+  const linked = TICKETS.find((t) => "#" + t.id === location.hash);
+  const [activeId, setActiveId] = useState(linked ? linked.id : TICKETS[0] ? TICKETS[0].id : null);
   const [generating, setGenerating] = useState(null);
   const [groupOpen, setGroupOpen] = useState(null);
   const [notes, setNotes] = useState(NOTES);
@@ -1028,6 +1030,7 @@ function App() {
   useEffect(() => {
     setEditing(false);
     const main = document.querySelector(".main"); if (main) main.scrollTop = 0;
+    if (activeId) history.replaceState(null, "", "#" + activeId);
   }, [activeId]);
 
   const keys = useRef({});
