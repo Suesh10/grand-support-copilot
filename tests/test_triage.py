@@ -128,3 +128,17 @@ def test_failure_returns_contract_for_human(monkeypatch):
     monkeypatch.setattr(pipeline, "triage_full", boom)
     resp = pipeline.triage({"kind": "complaint", "messages": [{"text": "x"}]})
     assert resp["needs_human"] is True and resp["category"] == "complaint.other" and resp["reasons"]
+
+
+def report(text, reporter="a", at="2026-10-30T12:00:00"):
+    return {"reporter_hash": reporter, "created_at": at, "messages": [{"role": "player", "text": text}]}
+
+
+def test_similar_reports_within_an_hour_are_one_problem():
+    from copilot.dedupe import Deduper
+    d = Deduper()
+    assert d.is_duplicate(report("застрял в текстурах")) is False
+    assert d.is_duplicate(report("помогите застрял в текстурах", at="2026-10-30T12:10:00")) is True
+    assert d.is_duplicate(report("застрял в текстурах", reporter="b")) is False  # другой игрок
+    assert d.is_duplicate(report("как устроиться в полицию", at="2026-10-30T12:20:00")) is False  # другая проблема
+    assert d.is_duplicate(report("застрял в текстурах", at="2026-10-30T14:00:00")) is False  # окно прошло
