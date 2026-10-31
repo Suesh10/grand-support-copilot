@@ -196,25 +196,21 @@ def demo() -> dict:
     return json.loads(path.read_text(encoding="utf-8")) if path.exists() else {}
 
 
-def profile(player_hash: str | None) -> dict | None:
-    """Профиль игрока или None, если истории мало."""
-    if not player_hash:
-        return None
-    note = read_memory().get(player_hash, {"new": 0, "topics": {}})
+def _history(player_hash: str | None) -> dict:
+    """Счётчики игрока из обучающей выгрузки или демо-профиль."""
     if player_hash in demo():
-        base = {"reports_against": 0, "topics": {}, **demo()[player_hash], "demo": True}
-    else:
-        data = load() or {"filed": {}, "against": {}, "reports": {}, "template": [], "reports_against": {}, "topics": {}}
-        filed = data["filed"].get(player_hash, Counter())
-        against = data["against"].get(player_hash, Counter())
-        base = {"filed": filed.get("total", 0), "filed_confirmed": filed.get("approved", 0),
-                "reports": data["reports"].get(player_hash, 0),
-                "criteria": [{"name": CRITERIA_NAMES[k], "count": filed[k]} for k in data["template"] if filed.get(k)],
-                "against": against.get("total", 0), "against_confirmed": against.get("approved", 0),
-                "reports_against": data["reports_against"].get(player_hash, 0), "topics": dict(data["topics"].get(player_hash, {}))}
-        about = base["against"] + base["reports_against"] + note["new"]
-        if base["filed"] + base["reports"] < MIN_FILED and about < MIN_FILED:
-            return None
+        return {"reports_against": 0, "topics": {}, **demo()[player_hash], "demo": True}
+    data = load() or {"filed": {}, "against": {}, "reports": {}, "template": [], "reports_against": {}, "topics": {}}
+    filed = data["filed"].get(player_hash, Counter())
+    against = data["against"].get(player_hash, Counter())
+    return {"filed": filed.get("total", 0), "filed_confirmed": filed.get("approved", 0),
+            "reports": data["reports"].get(player_hash, 0),
+            "criteria": [{"name": CRITERIA_NAMES[k], "count": filed[k]} for k in data["template"] if filed.get(k)],
+            "against": against.get("total", 0), "against_confirmed": against.get("approved", 0),
+            "reports_against": data["reports_against"].get(player_hash, 0), "topics": dict(data["topics"].get(player_hash, {}))}
+
+
+def _card(base: dict, note: dict) -> dict:
     topics = Counter(base["topics"])
     topics.update(note["topics"])
     p = {**base, "new": note["new"], "total": base["filed"] + base["reports"],
@@ -222,3 +218,31 @@ def profile(player_hash: str | None) -> dict | None:
          "topics": [{"code": k, "count": n} for k, n in topics.most_common(3)]}
     p["comment"] = comment(p)
     return p
+
+
+def profile(player_hash: str | None) -> dict | None:
+    """Профиль с выводами или None, если истории мало для выводов."""
+    if not player_hash:
+        return None
+    note = read_memory().get(player_hash, {"new": 0, "topics": {}})
+    base = _history(player_hash)
+    about = base["against"] + base["reports_against"] + note["new"]
+    if not base.get("demo") and base["filed"] + base["reports"] < MIN_FILED and about < MIN_FILED:
+        return None
+    return _card(base, note)
+
+
+def mini_profile(player_hash: str | None) -> dict:
+    """Карточка есть у каждого игрока: у новичка она честно говорит, что истории пока нет."""
+    full = profile(player_hash)
+    if full:
+        return full
+    note = read_memory().get(player_hash or "", {"new": 0, "topics": {}})
+    card = _card(_history(player_hash), note)
+    if not player_hash:
+        card["comment"] = "Данных об этом игроке нет."
+    elif card["total"] or card["against_total"]:
+        card["comment"] = "Обращений мало, выводы делать рано."
+    else:
+        card["comment"] = "Новый игрок: обращений пока нет."
+    return card

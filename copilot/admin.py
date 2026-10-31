@@ -156,8 +156,8 @@ def api_queue() -> dict:
     # Профили считаем при каждом запросе: они меняются от решений админа.
     # Удалённые тоже помним по id: иначе решённый тикет вернётся в очередь как новый.
     closed = {x["ticket_id"] for x in read_archive()} | set(read_deleted())
-    items = [{**x, "profiles": {"reporter": reputation.profile(x["reporter_hash"]),
-                                "reported": reputation.profile(x["reported_hash"])}}
+    items = [{**x, "profiles": {"reporter": reputation.mini_profile(x["reporter_hash"]),
+                                "reported": reputation.mini_profile(x["reported_hash"])}}
              for x in load_queue() if x["id"] not in closed]
     return {"items": items, "llm": llm.status(), "notes": reputation.read_notes(), "proposal_accuracy": proposal_accuracy()}
 

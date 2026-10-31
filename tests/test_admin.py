@@ -335,3 +335,15 @@ def test_blind_review_hides_author_until_scored(tmp_path):
 
 def test_review_is_hidden_without_local_set():
     assert client.get("/api/review").json() == {"available": False}
+
+
+def test_every_player_has_a_mini_profile():
+    from copilot import reputation
+    new = reputation.mini_profile("no-such-player")
+    assert new["filed"] == 0 and new["comment"] == "Новый игрок: обращений пока нет."
+    assert reputation.mini_profile(None)["comment"] == "Данных об этом игроке нет."
+    reputation.remember("rare-player", "complaint.insult")
+    rare = reputation.mini_profile("rare-player")
+    assert rare["against_total"] == 1 and rare["comment"] == "Обращений мало, выводы делать рано."
+    assert reputation.profile("no-such-player") is None  # выводы по-прежнему только при достаточной истории
+    assert all(x["profiles"]["reporter"] for x in client.get("/api/queue").json()["items"])
