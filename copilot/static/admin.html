@@ -69,10 +69,32 @@
   .has-tip { position: relative; cursor: help; border-bottom: 1px dotted var(--muted); }
   .tip { display: none; position: absolute; left: 0; top: 100%; z-index: 30; width: 320px; margin-top: 6px; padding: 12px 14px; background: var(--raised); border: 1px solid var(--line); border-radius: 2px; font-family: "Onest", system-ui, sans-serif; font-size: 14px; font-weight: 400; line-height: 1.4; }
   .has-tip:hover .tip, .has-tip:focus .tip { display: block; }
+  /* Профиль не закрывает обращение: на широком экране он слева от колонки. */
+  @media (min-width: 1200px) {
+    .tip { position: fixed; left: max(8px, calc(50vw + 100px - 440px - 316px)); top: auto; width: 300px; margin-top: 0; }
+  }
   .facts { display: grid; gap: 8px; font-size: 14px; }
   .fact-row { display: grid; gap: 1px; color: var(--muted); }
   .fact-row b { color: var(--text); font-weight: 700; }
   .fact-note { padding-top: 8px; border-top: 1px solid var(--line); color: var(--text); }
+  .claim { display: grid; grid-template-columns: 150px minmax(0, 1fr); min-height: 150px; background: var(--paper); border: 1px solid var(--line); border-radius: 8px; }
+  .claim-who { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 8px; padding: 16px 10px; background: var(--raised); border-right: 1px solid var(--line); border-bottom: 0; border-radius: 8px 0 0 8px; min-width: 0; }
+  .claim-body { display: flex; flex-direction: column; gap: 10px; min-width: 0; padding: 18px 22px; color: var(--muted); font-size: 15px; }
+  .claim-body b { color: var(--text); font-weight: 700; }
+  .claim-text { color: var(--text); line-height: 1.5; overflow-wrap: anywhere; }
+  @media (max-width: 767px) { .claim { grid-template-columns: 96px minmax(0, 1fr); } .claim-body { padding: 14px; } }
+  .proofs { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 8px; margin-top: auto; }
+  .proof { position: relative; display: inline-flex; align-items: center; gap: 8px; min-height: 40px; padding: 0 14px; background: var(--raised); color: var(--text); border: 1px solid var(--line); border-radius: 6px; font-size: 14px; font-weight: 600; cursor: pointer; }
+  .proof[aria-disabled="true"] { color: var(--muted); cursor: help; }
+  .proof-preview { display: none; position: absolute; right: 0; bottom: calc(100% + 8px); z-index: 30; width: 280px; padding: 8px; background: var(--raised); border: 1px solid var(--line); border-radius: 6px; color: var(--muted); font-size: 14px; font-weight: 400; text-align: left; }
+  .proof:hover .proof-preview, .proof:focus-visible .proof-preview { display: block; }
+  .proof-media { display: block; max-width: 100%; max-height: 80vh; border-radius: 4px; }
+  .lightbox .proof-media { width: min(90vw, 960px); max-height: 80vh; object-fit: contain; }
+  .lightbox { position: fixed; inset: 0; z-index: 50; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 14px; padding: 16px; background: rgb(0 0 0 / 0.85); }
+  .side-title { color: var(--text); font-size: 24px; font-weight: 700; margin-bottom: -2px; }
+  .msg-nick { max-width: 100%; color: var(--text); font-size: 13px; font-weight: 700; overflow-wrap: anywhere; text-align: center; }
+  .msg-ava { width: 64px; height: 64px; flex: none; display: grid; place-items: center; border-radius: 999px; background: var(--paper); border: 1px solid var(--line); color: var(--text); font-size: 20px; font-weight: 700; }
+  .msg-ava-own { background: var(--accent); border-color: var(--accent); color: var(--on-accent); }
   .field { width: 100%; min-height: 44px; margin-top: 4px; padding: 0 12px; background: var(--raised); color: var(--text); border: 1px solid var(--line); border-radius: 2px; }
   .form-grid label { display: block; font-size: 14px; font-weight: 600; color: var(--muted); }
   select.pill { background: var(--paper); color: var(--text); }
@@ -165,11 +187,14 @@ function toTicket(x) {
     (groups[group] = groups[group] || []).push({ label: value, ins: value, insRu: value });
   });
   const chips = Object.entries(groups).map(([group, items]) => ({ group, items }));
-  const proofs = x.images ? `Вложений: ${x.images}` : (tr.extracted.has_evidence ? "Есть ссылка" : "Нет");
+  const files = x.appeal_of ? x.attachments : x.attachments.filter((f) => f.from !== "reported_player");
+  const fileCount = Math.max(x.images, files.length);
+  const proofs = fileCount ? `Вложений: ${fileCount}` : (tr.extracted.has_evidence ? "Есть ссылка" : "Нет");
   return {
     id: x.id, p: Number(tr.priority.slice(1)), from: nick || `Обращение ${x.id}`, server: x.region ? x.region.toUpperCase() : (x.kind === "complaint" ? "жалоба" : "репорт"),
     lang: tr.lang, cat: tr.category, aiCat: tr.category, reportedHash: x.reported_hash, conf: tr.confidence, kind: x.kind,
     text: x.messages.map((m) => (m.role === "reported_player" ? "Обвиняемый: " : "") + m.text).join("\n"),
+    msgs: x.messages, reporterNick: x.reporter_nick, images: x.images, attachments: files, appealOf: x.appeal_of,
     facts: { nick, refs: tr.extracted.rule_refs.join(", ") || "нет", proof: proofs },
     ref: rule ? rule.ref : null, chips: chips.length ? chips : null,
     draft: tr.draft_reply.text, original: tr.draft_reply.text, human: tr.reasons,
@@ -216,6 +241,8 @@ const P = [
 ];
 const LANG = { ru: "RU", kk: "KK", uz: "UZ", en: "EN", es: "ES", pt: "PT", und: "?" };
 const LOW_CONF = 0.7;
+const SURE_CONF = 0.85;
+const confText = (conf) => conf < LOW_CONF ? "ИИ сомневается: проверьте вид" : conf < SURE_CONF ? "ИИ почти уверен в виде" : "ИИ уверен в виде";
 const initials = (nick) => nick.split("_").map((w) => w[0]).join("");
 
 const Badge = ({ p }) => html`<span class="badge" style=${{ background: P[p].color }}>P${p} · ${P[p].name}</span>`;
@@ -272,7 +299,7 @@ function TryView({ onBack }) {
     ["Пункты правил", (res.draft_reply.cited.join(", ")) || "не нужны"],
     ["Доказательства", f.has_evidence ? "есть" : "нет"],
     ["Нужен человек", res.needs_human ? "да: " + res.reasons.join("; ") : "нет, можно отправлять"],
-    ["Уверенность", String(res.confidence).replace(".", ",")],
+    ["Вид обращения", confText(res.confidence)],
   ] : [];
   return html`<div class="enter gutter max-w-[880px] mx-auto py-8 grid gap-5">
     <div class="flex flex-wrap items-center gap-3">
@@ -326,7 +353,7 @@ function GroupView({ g, onPick, onBack }) {
         <span class="badge flex-none" style=${{ background: P[t.p].color, height: 26, fontSize: 13, padding: "0 10px" }}>P${t.p}</span>
         <span class="min-w-0 flex-1">
           <span class="block font-semibold truncate">${t.textRu || t.text}</span>
-          <span class="block text-sm text-mute truncate">${t.facts.nick ? "На " + t.facts.nick + " · " : ""}${LANG[t.lang]} · ${t.human.length ? "решает админ" : "можно отправлять"}</span>
+          <span class="block text-sm text-mute truncate">${t.facts.nick && !t.appealOf ? "На " + t.facts.nick + " · " : ""}${LANG[t.lang]} · ${t.human.length ? "решает админ" : "можно отправлять"}</span>
         </span>
       </button>`)}
     </div>
@@ -383,6 +410,9 @@ function Drawer({ s, activeId, goals, autoOpen, onAuto, onCheck, onPick, onClose
   </aside>`;
 }
 
+const NEEDS_RU = ["kk", "uz"];
+const NO_RU = "Перевода пока нет: ИИ не ответил. Откройте обращение ещё раз позже.";
+
 function Translation({ text, stale }) {
   return html`<div class="mt-4 pt-4 border-t border-[var(--line)] flex gap-3 text-[15px] text-mute">
     <${Languages} size=${18} class="flex-none mt-[3px]" />
@@ -393,12 +423,11 @@ function Translation({ text, stale }) {
 /* Что сделал ИИ: одна строка из наклеек, последняя называет, кто решает. */
 function Trace({ t }) {
   const low = t.conf < LOW_CONF;
-  const conf = t.conf.toFixed(2).replace(".", ",");
   return html`<div aria-label="Что сделал ИИ" class="flex flex-wrap gap-2">
     <span class="pill">Язык ${LANG[t.lang]}</span>
     <span class="pill font-code">${t.cat}</span>
-    <span class=${"pill" + (low ? " pill-low" : "")}>${low ? `Низкая уверенность ${conf}` : `Уверенность ${conf}`}</span>
-    ${t.facts.nick && html`<span class="pill">На ${t.facts.nick}</span>`}
+    <span class=${"pill" + (low ? " pill-low" : "")}>${confText(t.conf)}</span>
+    ${t.facts.nick && !t.appealOf && html`<span class="pill">На ${t.facts.nick}</span>`}
     <span class="pill">${t.facts.proof === "Нет" ? "Без доказательств" : t.facts.proof}</span>
     <span class="pill pill-final">${t.human.length ? "Решает админ" : "Можно отправлять"}</span>
   </div>`;
@@ -438,33 +467,47 @@ function PlayerFacts({ p }) {
   </span>`;
 }
 
-function PlayerTip({ p, label }) {
-  return html`<span class="has-tip" tabindex="0">${label}<span class="tip" role="tooltip"><${PlayerFacts} p=${p} /></span></span>`;
-}
+/* Обращение как переписка: слева ник и кружок, правее текст. Ника заявителя в данных нет. */
+/* Чем больше слов, тем мельче текст: длинная заявка не должна занимать весь экран. */
+const textSize = (text) => `${Math.max(15, 22 - 0.2 * text.split(/\s+/).length)}px`;
 
-function ProfileBox({ title, p }) {
-  if (!p) return null;
-  return html`<div class="min-w-0">
-    <p class="font-semibold mb-2">${title}${p.demo ? " (пример)" : ""}</p>
-    <${PlayerFacts} p=${p} />
-  </div>`;
-}
-
-function Profiles({ t, notes }) {
-  const { reporter, reported } = t.profiles;
-  const own = notes.filter((n) => t.facts.nick && n.nick.toLowerCase() === t.facts.nick.toLowerCase());
-  if (!reporter && !reported && !own.length) return null;
-  return html`<section class="card" aria-label="История игроков">
-    <h3 class="label mb-3 flex items-center gap-2"><${UserRound} size=${16} /> История игроков: подсказка, решает админ</h3>
-    <div class="grid gap-4 md:grid-cols-2">
-      <${ProfileBox} title="Заявитель" p=${reporter} />
-      <${ProfileBox} title="Обвиняемый" p=${reported} />
+/* Заявка: слева игрок (наведение открывает его профиль), справа содержимое. Это заявка, а не чат с админом. */
+function Box({ nick, letter, own, p, children }) {
+  return html`<section class="claim">
+    <div class=${"claim-who" + (p ? " has-tip" : "")} tabindex=${p ? 0 : undefined}>
+      <span class=${"msg-ava" + (own ? " msg-ava-own" : "")} aria-hidden="true">${nick && nick.includes("_") ? initials(nick) : letter}</span>
+      ${nick && html`<span class="msg-nick">${nick}</span>`}
+      ${p && html`<span class="tip" role="tooltip"><${PlayerFacts} p=${p} /></span>`}
     </div>
-    ${own.length > 0 && html`<div class="mt-4 pt-3 border-t border-[var(--line)] grid gap-1">
-      <p class="font-semibold">Профиль от админа</p>
-      ${own.map((n) => html`<p key=${n.id} class="text-[15px]"><b>${n.status}</b> · ${(TYPE_NAMES[n.category] || n.category).toLowerCase()}${n.comment ? " · " + n.comment : ""}</p>`)}
-    </div>`}
+    <div class="claim-body">${children}</div>
   </section>`;
+}
+
+const isVideo = (f) => f.type === "video" || /\.(mp4|webm|mov)$/i.test(f.url);
+const Media = ({ f }) => (isVideo(f) ? html`<video src=${f.url} controls class="proof-media"></video>` : html`<img src=${f.url} alt=${f.name || "Доказательство"} class="proof-media" />`);
+
+/* Доказательства справа снизу: наведение показывает файл, нажатие открывает его. Файлы придут от Grand Mobile. */
+function Proofs({ files, images = 0 }) {
+  const [open, setOpen] = useState(null);
+  /* Пока файл открыт, клавиши не доходят до горячих клавиш очереди: Esc только закрывает просмотр. */
+  useEffect(() => {
+    if (!open) return undefined;
+    const onKey = (e) => { e.stopImmediatePropagation(); if (e.code === "Escape") setOpen(null); };
+    window.addEventListener("keydown", onKey, true);
+    return () => window.removeEventListener("keydown", onKey, true);
+  }, [open]);
+  const count = Math.max(images, files.length);
+  if (!count) return null;
+  return html`<div class="proofs">
+    ${Array.from({ length: count }, (_, i) => files[i]).map((f, i) => html`<button key=${i} type="button" class="proof" aria-disabled=${!f} onClick=${() => f && setOpen(f)}>
+      <${Paperclip} size=${16} /> ${f?.name || `Файл ${i + 1}`}
+      <span class="proof-preview" role="tooltip">${f ? html`<${Media} f=${f} />` : "Файл не передан: в данных есть только число вложений."}</span>
+    </button>`)}
+    ${open && html`<div class="lightbox" role="dialog" aria-label="Просмотр доказательства" onClick=${() => setOpen(null)}>
+      <button type="button" class="chip" onClick=${() => setOpen(null)}><${X} size=${16} /> Закрыть <span class="key">Esc</span></button>
+      <div onClick=${(e) => e.stopPropagation()}><${Media} f=${open} /></div>
+    </div>`}
+  </div>`;
 }
 
 function Generate({ t, generating, onGenerate }) {
@@ -563,8 +606,9 @@ function NotesView({ notes, onAdd, onDelete, onBack }) {
   </div>`;
 }
 
-function Ticket({ t, editing, generating, onGenerate, notes, onType, seriesCount, nudge, ruleOpen, onToggleRule, onDraft, onEdit, onStopEdit, onSend, onEsc, onChip, onMerge, areaRef }) {
+function Ticket({ t, editing, generating, onGenerate, onType, seriesCount, nudge, ruleOpen, onToggleRule, onDraft, onEdit, onStopEdit, onSend, onEsc, onChip, onMerge, areaRef }) {
   const needsPunish = t.draft.includes(SLOT[t.lang]);
+  const shown = t.appealOf ? t.msgs : t.msgs.filter((m) => m.role !== "reported_player");  /* ответ обвиняемого живёт в апелляциях */
   useLayoutEffect(() => {
     const el = areaRef.current;
     if (el) { el.style.height = "auto"; el.style.height = el.scrollHeight + "px"; }
@@ -575,7 +619,7 @@ function Ticket({ t, editing, generating, onGenerate, notes, onType, seriesCount
         <${Badge} p=${t.p} />
         <span class="text-sm text-mute"><span class="font-code">#${t.id}</span> · ${t.server}</span>
       </div>
-      <h2 class="font-display text-[30px] font-bold leading-tight break-words">${t.profiles.reported ? html`<${PlayerTip} p=${t.profiles.reported} label=${t.from} />` : t.from}</h2>
+      <h2 class="font-display text-[30px] font-bold leading-tight break-words">${t.appealOf ? `Апелляция по жалобе ${t.appealOf}` : `${t.kind === "complaint" ? "Жалоба" : "Репорт"}: ${(TYPE_NAMES[t.cat] || "обращение").toLowerCase()}`}</h2>
     </div>
     ${seriesCount > 0 && html`<div class="flex flex-wrap items-center gap-3 rounded-[2px] border border-[var(--line)] bg-[var(--paper)] px-5 py-3">
       <${Combine} size=${20} class="flex-none" />
@@ -583,12 +627,15 @@ function Ticket({ t, editing, generating, onGenerate, notes, onType, seriesCount
       <button type="button" class="chip" onClick=${onMerge}><span class="key">M</span>Объединить</button>
     </div>`}
     ${t.merged && html`<p class="flex items-center gap-2 text-[15px]"><${Combine} size=${18} class="flex-none" /> Объединено жалоб: ${t.merged.length + 1}.</p>`}
-    <section class="card">
-      <h3 class="label mb-2">Игрок написал</h3>
-      <p class="text-[21px] leading-[1.5]">${t.text}</p>
-      ${t.textRu && html`<${Translation} text=${t.textRu} />`}
-      ${t.facts.proof !== "Нет" && html`<p class="mt-3 flex items-center gap-2 text-[15px] text-mute"><${Paperclip} size=${16} /> ${t.facts.proof}</p>`}
-    </section>
+    <div class="grid gap-2">
+    <h3 class="side-title">${t.appealOf ? "Игрок" : "Заявитель"}</h3>
+    <${Box} nick=${t.appealOf ? t.facts.nick : t.reporterNick} letter=${t.appealOf ? "И" : "З"} own p=${t.appealOf ? t.profiles.reported : t.profiles.reporter}>
+      ${shown.map((m, i) => html`<p key=${i} class="claim-text" style=${{ fontSize: textSize(m.text) }}>${m.text}</p>`)}
+      ${(t.textRu || NEEDS_RU.includes(t.lang)) && html`<${Translation} text=${t.textRu || NO_RU} />`}
+      ${t.facts.proof !== "Нет" && !t.images && !t.attachments.length && html`<p class="mt-3 flex items-center gap-2 text-[15px] text-mute"><${Paperclip} size=${16} /> ${t.facts.proof}</p>`}
+      <${Proofs} files=${t.attachments} images=${t.images} />
+    <//>
+    </div>
     <${Trace} t=${t} />
     <div class="flex flex-wrap items-center gap-3">
       <label for="ticketType" class="label">Вид обращения, решает админ</label>
@@ -596,11 +643,11 @@ function Ticket({ t, editing, generating, onGenerate, notes, onType, seriesCount
         ${Object.entries(TYPE_NAMES).filter(([code]) => code.startsWith(t.kind + ".")).map(([code, name]) => html`<option key=${code} value=${code}>${name}</option>`)}
       </select>
     </div>
-    <${Profiles} t=${t} notes=${notes} />
+    ${!t.appealOf && t.msgs.some((m) => m.role === "reported_player") && html`<p class="text-[15px] text-mute">По этой жалобе есть апелляция: она во вкладке «Апелляции и админы».</p>`}
     <section class=${"card draft-card" + (editing ? " editing" : "")}>
       <label for="draft" class="label block mb-2">Черновик ответа, ${LANG[t.lang]}${editing ? " · Ctrl+Enter отправить, Esc выйти" : ""}</label>
       <textarea id="draft" ref=${areaRef} class="draft" rows="2" readOnly=${!editing} value=${t.draft} onChange=${(e) => onDraft(e.target.value)} onClick=${onEdit} onBlur=${onStopEdit}></textarea>
-      ${t.draftRu && html`<${Translation} text=${t.draftRu} stale=${t.edited} />`}
+      ${(t.draftRu || NEEDS_RU.includes(t.lang)) && html`<${Translation} text=${t.draftRu || NO_RU} stale=${t.draftRu && t.edited} />`}
       ${needsPunish && html`<p class="mt-3 inline-flex items-center gap-2 rounded-[2px] border border-[var(--line)] text-warnt px-4 py-2 text-[15px] font-semibold"><${TriangleAlert} size=${16} class="flex-none" /> Выберите наказание ниже или впишите своё</p>`}
     </section>
     <${Generate} t=${t} generating=${generating} onGenerate=${onGenerate} />
@@ -852,7 +899,7 @@ function App() {
       <${Rail} s=${s} activeId=${activeId} openGroup=${[TRY_VIEW, NOTES_VIEW, ARCHIVE_VIEW].includes(groupOpen) ? groupOpen : group ? group.cat : null} onGroup=${setGroupOpen} onMenu=${() => setDrawer(!drawer)} />
       <main class="main min-w-0">
         ${groupOpen === TRY_VIEW ? html`<${TryView} onBack=${() => setGroupOpen(null)} />` : groupOpen === ARCHIVE_VIEW ? html`<${ArchiveView} onBack=${() => setGroupOpen(null)} />` : groupOpen === NOTES_VIEW ? html`<${NotesView} notes=${notes} onAdd=${addNote} onDelete=${deleteNote} onBack=${() => setGroupOpen(null)} />` : group ? html`<${GroupView} g=${group} onPick=${pick} onBack=${() => setGroupOpen(null)} />` : active
-          ? html`<${Ticket} t=${active} editing=${editing} generating=${generating} onGenerate=${generate} notes=${notes} onType=${(cat) => patchActive((t) => ({ ...t, cat }))} seriesCount=${seriesCount} nudge=${nudge} areaRef=${areaRef} ruleOpen=${ruleOpen} onToggleRule=${() => setRuleOpen(!ruleOpen)}
+          ? html`<${Ticket} t=${active} editing=${editing} generating=${generating} onGenerate=${generate} onType=${(cat) => patchActive((t) => ({ ...t, cat }))} seriesCount=${seriesCount} nudge=${nudge} areaRef=${areaRef} ruleOpen=${ruleOpen} onToggleRule=${() => setRuleOpen(!ruleOpen)}
               onDraft=${(v) => patchActive((t) => ({ ...t, draft: v, edited: true }))} onEdit=${edit} onStopEdit=${() => setEditing(false)}
               onSend=${send} onEsc=${escalate} onChip=${applyChip} onMerge=${merge} />`
           : html`<${Cleared} s=${s} onUndo=${undo} canUndo=${!!toast} />`}

@@ -16,6 +16,7 @@ from fastapi.responses import FileResponse
 from pydantic import BaseModel, Field
 
 from . import config, llm, reputation
+from .draft import handoff_draft
 from .normalize import normalize
 from .pipeline import triage_full
 from .predict import open_any, ticket_to_request
@@ -50,22 +51,38 @@ def rule_card(ref: str) -> dict | None:
             "punishments": punishments(ref)}
 
 
+def appeal_from(t: dict) -> dict | None:
+    """Ответ обвиняемого в жалобе идёт отдельным обращением во вкладку апелляций."""
+    replies = [m for m in t.get("messages", []) if m.get("role") == "reported_player"]
+    if not replies:
+        return None
+    return {"ticket_id": f"{t.get('ticket_id')}-appeal", "appeal_of": t.get("ticket_id"), "kind": "complaint",
+            "messages": replies, "reported_hash": t.get("reported_hash"), "reported_nick": t.get("reported_nick"),
+            "attachments": [f for f in t.get("attachments") or [] if f.get("from") == "reported_player"]}
+
+
 @lru_cache(maxsize=1)
 def raw_tickets() -> tuple:
-    return tuple(json.loads(line) for line in open_any(QUEUE_PATH) if line.strip())
+    tickets = [json.loads(line) for line in open_any(QUEUE_PATH) if line.strip()]
+    return (*tickets, *filter(None, map(appeal_from, tickets)))
 
 
 @lru_cache(maxsize=1)
 def load_queue() -> tuple:
     tickets = raw_tickets()
-    series = Counter(t.get("reported_nick") for t in tickets if t.get("reported_nick"))
+    series = Counter(t.get("reported_nick") for t in tickets if t.get("reported_nick") and not t.get("appeal_of"))
     items = []
     for t in tickets:
         request = ticket_to_request(t)
         pred, meta = triage_full(request)
         refs = meta["cited_full"] or meta["rule_refs_full"]
+        if t.get("appeal_of"):  # Исход апелляции решает только человек, черновик ничего не обещает.
+            pred = {**pred, "category": "complaint.admin", "priority": "p2", "needs_human": True, "draft_reply": handoff_draft(pred["lang"]),
+                    "reasons": ["апелляцию решает администратор"]}
+            refs = []
         items.append({
             "id": t.get("ticket_id"),
+            "appeal_of": t.get("appeal_of"),
             "kind": t.get("kind"),
             "messages": [{**m, "text": normalize(m.get("text", ""))} for m in request["messages"]],
             "images": t.get("images_count") or 0,
@@ -74,6 +91,8 @@ def load_queue() -> tuple:
             "rules": [c for c in (rule_card(r) for r in refs) if c],
             "series": series.get(t.get("reported_nick"), 1),
             "reporter_hash": t.get("reporter_hash"),
+            "reporter_nick": t.get("reporter_nick"),
+            "attachments": t.get("attachments") or [],  # [{url, name, type, from}]: файлы от Grand Mobile; from = reported_player у файлов обвиняемого
             "reported_hash": t.get("reported_hash"),
             "auto": not pred["needs_human"],
         })

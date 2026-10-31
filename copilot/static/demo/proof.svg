@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 360" role="img" aria-label="Демо-пример доказательства">
+  <rect width="640" height="360" fill="#25282C"/>
+  <rect x="32" y="32" width="576" height="296" rx="8" fill="#111214" stroke="#3A3E44"/>
+  <text x="56" y="84" fill="#E8E6E1" font-family="sans-serif" font-size="22" font-weight="700">Пример доказательства</text>
+  <text x="56" y="124" fill="#9EA3A8" font-family="sans-serif" font-size="18">Здесь будет скриншот или кадр видео от игрока.</text>
+  <text x="56" y="154" fill="#9EA3A8" font-family="sans-serif" font-size="18">Файлы передаёт Grand Mobile.</text>
+</svg>

@@ -168,6 +168,19 @@ def test_queue_rules_have_real_punishments():
     assert any("MUTE" in p for p in card["punishments"])
 
 
+def test_accused_reply_becomes_appeal():
+    ticket = {"ticket_id": "t1", "messages": [{"role": "player", "text": "обманул"}, {"role": "reported_player", "text": "нет"}],
+              "reported_nick": "Oleg_Smirnov", "attachments": [{"url": "a.png"}, {"url": "b.png", "from": "reported_player"}]}
+    appeal = admin.appeal_from(ticket)
+    assert appeal["ticket_id"] == "t1-appeal" and appeal["appeal_of"] == "t1"
+    assert [m["text"] for m in appeal["messages"]] == ["нет"]
+    assert [f["url"] for f in appeal["attachments"]] == ["b.png"]
+    assert admin.appeal_from({"ticket_id": "t2", "messages": [{"role": "player", "text": "x"}]}) is None
+    item = next(x for x in admin.load_queue() if x["appeal_of"])
+    assert item["triage"]["category"] == "complaint.admin" and item["triage"]["needs_human"]
+    assert item["triage"]["draft_reply"]["cited"] == []
+
+
 def test_feedback_saved_with_edit_flag(tmp_path, monkeypatch):
     path = tmp_path / "feedback.jsonl"
     monkeypatch.setattr(admin, "FEEDBACK_PATH", path)
