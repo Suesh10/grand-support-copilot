@@ -8,6 +8,7 @@ import pytest
 
 os.environ.setdefault("COPILOT_LLM_MODE", "offline")
 
+from copilot import guard, knowledge  # noqa: E402
 from copilot.pipeline import triage  # noqa: E402
 from copilot.rules import is_contract_ref, is_valid_ref, parse_refs  # noqa: E402
 
@@ -156,6 +157,47 @@ def test_money_unban_hack_go_to_human(text):
     resp = triage({"kind": kind, "messages": [{"role": "player", "text": text}]})
     assert resp["needs_human"] is True
     assert resp["reasons"]
+
+
+@pytest.mark.parametrize("text", ["дайте амнистию пожалуйста", "снимите мут я ничего не делал", "снимите варн"])
+def test_amnesty_and_small_sanctions_go_to_human(text):
+    resp = triage({"kind": "complaint", "messages": [{"role": "player", "text": text, "attachments": 1}]})
+    assert resp["needs_human"] is True and resp["category"] == "complaint.admin"
+
+
+def test_amnesty_is_never_promised():
+    assert guard.has_forbidden_promise_hard("Амнистия будет выдана после проверки")
+
+
+@pytest.mark.parametrize("text,link", [("взломали аккаунт, сменили пароль", "11029958"), ("донат не пришёл, деньги списали", "11029218"),
+                                       ("сервер лежит, никто не может зайти", "12802228")])
+def test_urgent_report_gets_first_steps_and_still_goes_to_human(text, link):
+    resp = triage({"kind": "report", "messages": [{"role": "player", "text": text}]})
+    assert resp["priority"] == "p0" and resp["needs_human"] is True and link in resp["draft_reply"]["text"]
+
+
+def test_appeal_asks_only_for_what_is_missing():
+    named = "прошу снять бан, Admin_Serik выдал мне наказание ошибочно, решение № 4521"
+    assert "укажите" not in triage({"kind": "complaint", "messages": [{"role": "player", "text": named, "attachments": 1}]})["draft_reply"]["text"]
+    plain = "не согласен с наказанием, бан выдан ошибочно"
+    reply = triage({"kind": "complaint", "messages": [{"role": "player", "text": plain, "attachments": 1}]})["draft_reply"]["text"]
+    assert "ник администратора и номер решения" in reply and "разбан" not in reply.lower()
+
+
+def test_doubt_about_admin_points_to_the_curator():
+    text = "администратор Admin_Serik злоупотребляет правами, выдал мне наказание"
+    assert "куратору" in triage({"kind": "complaint", "messages": [{"role": "player", "text": text, "attachments": 1}]})["draft_reply"]["text"]
+
+
+@pytest.mark.parametrize("text,title", [("как изменить никнейм?", "никнейм"), ("как получить права на грузовик?", "лицензии"), ("вылетает игра что делать", "вылетает")])
+def test_question_is_answered_with_a_support_article(text, title):
+    resp = triage({"kind": "report", "messages": [{"role": "player", "text": text}]})
+    assert "support.grnd.gg" in resp["draft_reply"]["text"] and title in resp["draft_reply"]["text"]
+
+
+@pytest.mark.parametrize("text", ["подскажите, что делать?", "снимите наручники", "Столица Греции?", "собеседование!!"])
+def test_no_article_is_better_than_a_wrong_one(text):
+    assert knowledge.find(text) is None
 
 
 def test_mass_outage_goes_to_human_without_asking_to_clarify():

@@ -95,6 +95,7 @@ def _load_queue() -> tuple:
             "appeal_of": t.get("appeal_of"),
             "proposal": None if t.get("appeal_of") else meta.get("proposal"),
             "duplicate": request["is_duplicate"],
+            "article": meta.get("article"),
             "shows": t.get("shows"),  # только у демо-примеров: какую функцию показывает обращение
             "kind": t.get("kind"),
             "messages": [{**m, "text": normalize(m["text"]), "spans": spans(normalize(m["text"]))} for m in request["messages"]],

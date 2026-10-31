@@ -4,14 +4,16 @@ import logging
 import re
 
 from . import classify as clf
-from . import guard, learn, llm, model, rag, retrieve, templates
+from . import guard, knowledge, learn, llm, model, rag, retrieve, templates
 from .draft import (INVENTED_FACT_RE, adapt_reply, handoff_draft, offline_draft, proposal_draft, retrieval_draft,
                     strip_foreign_details, term_is_quoted)
 from .extract import extract
 from .normalize import detect_lang, normalize
 from .rules import filter_valid, parse_refs, short_ref
+from .signals import HACK_RE, MASS_BUG_RE
 
 ALWAYS_TEMPLATE = {"report.account", "report.payment"}
+ARTICLE_CATEGORIES = {"report.question", "report.help", "report.complaint"}
 
 
 log = logging.getLogger(__name__)
@@ -72,6 +74,17 @@ def likely_verdict(kind: str, category: str, text: str, rule_refs_raw: str, has_
     return UNDER_REVIEW
 
 
+def first_steps(kind: str, category: str, text: str) -> tuple[str, str] | None:
+    """Срочный репорт: какой шаг игрок может сделать сам и в какой статье он описан."""
+    if kind != "report":
+        return None
+    if HACK_RE.search(text):
+        return "hack", knowledge.HACK_ARTICLE
+    if category == "report.payment":
+        return "payment", knowledge.PAYMENT_ARTICLE
+    return ("outage", knowledge.OUTAGE_ARTICLE) if MASS_BUG_RE.search(text) else None
+
+
 def player_text(messages: list[dict]) -> str:
     """Текст заявителя и обвиняемого, без ответов админа."""
     return " \n".join(normalize(m.get("text", "")) for m in messages if m.get("role") != "admin")
@@ -113,6 +126,12 @@ def triage_full(request: dict, verdict_override: str | None = None) -> tuple[dic
     if kind == "report" and lang in FOREIGN_HANDOFF:
         draft, meta["draft_source"] = handoff_draft(lang), "handoff"
         needs_human, reasons = True, reasons or ["нет шаблона на языке игрока"]
+    steps = first_steps(kind, category, text)
+    article = knowledge.article(steps[1]) if steps else knowledge.find(text) if kind == "report" else None
+    meta["article"] = article
+    if steps and article and lang in ("ru", "und"):
+        draft = {"lang": "ru", "text": templates.FIRST_STEPS[steps[0]].format(url=article["url"]), "cited": []}
+        meta["draft_source"] = "first_steps"
     # Админ уже исправлял такой ответ: его правка важнее шаблона и догадок модели.
     lesson = None if verdict_override or draft else learn.find(text, category, lang)
     if lesson and draft is None:
@@ -120,6 +139,10 @@ def triage_full(request: dict, verdict_override: str | None = None) -> tuple[dic
         mentioned = parse_refs(reply, default_section="ОП")
         if all(r in rag.load_points() for r in mentioned):
             draft, meta["draft_source"] = {"lang": lang, "text": reply, "cited": mentioned}, "lesson"
+    # Готовый ответ поддержки лучше, чем попросить уточнить вопрос.
+    if draft is None and article and category in ARTICLE_CATEGORIES and lang in ("ru", "und") and not verdict_override:
+        draft = {"lang": "ru", "text": templates.ARTICLE_REPLY.format(**article), "cited": []}
+        meta["draft_source"] = "article"
     # Типовые репорты на русском: частый ответ админов, без LLM и бесплатно.
     if draft is None and kind == "report" and category not in ALWAYS_TEMPLATE and lang in ("ru", "und") and not verdict_override:
         template = retrieve.report_template(category)

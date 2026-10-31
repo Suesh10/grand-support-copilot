@@ -75,7 +75,7 @@ make serve DATA=/путь/к/handout
 ```
 
 - `POST http://localhost:8000/triage` — контракт из ТЗ
-- `http://localhost:8000/admin` — очередь админа: 29 придуманных примеров из `examples/sample_tickets.jsonl`, у каждого написано, какую функцию он показывает
+- `http://localhost:8000/admin` — очередь админа: 30 придуманных примеров из `examples/sample_tickets.jsonl`, у каждого написано, какую функцию он показывает
 - `http://localhost:8000/docs` — интерактивная документация API
 - `http://localhost:8000/health` — состояние моделей и LLM
 
@@ -96,6 +96,7 @@ curl -X POST localhost:8000/triage -H "Content-Type: application/json" -d '{"kin
 | `make train` | обучает модели, строит индекс похожих случаев и предложения шаблонов |
 | `make eval` | считает отчёт на валидации: метрики, стоимость, p95 |
 | `make examples` | пересобирает `docs/examples.md` и `docs/examples.html` |
+| `python scripts/articles.py` | обновляет список статей поддержки, нужен интернет |
 | `make audit` | построчная проверка ответов по ТЗ и провокации на 6 языках; `AUDIT_LLM=100` пропустит 100 обращений через LLM |
 | `make review` | готовит слепую оценку: черновики рядом с реальными ответами, вкладка в интерфейсе |
 | `make test DATA=/путь/к/handout` | запускает тесты, без данных они пропускаются |

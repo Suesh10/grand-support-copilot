@@ -132,7 +132,8 @@ def check(t: dict, r: dict, meta: dict) -> list[tuple[str, str, str]]:
     plain = re.sub(r"\b\d[\d.]*\s*(ОП|ЖБ|GZ|ПГО|ОПГ)\b", "", text)
     if d.get("lang") in ("uz", "en", "es", "pt") and cyrillic_share(plain) > 0.2:
         bad("ERROR", "кириллица в черновике на латинице", plain[:70])
-    if d.get("lang") in ("ru", "kk") and cyrillic_share(plain) < 0.7:
+    # Ссылка на статью поддержки всегда латиницей: на язык ответа она не указывает.
+    if d.get("lang") in ("ru", "kk") and cyrillic_share(re.sub(r"https?://\S+", "", plain)) < 0.7:
         bad("ERROR", "латиница в кириллическом черновике", plain[:70])
     if d.get("lang") == "kk" and not any(c in KK_LETTERS for c in plain):
         bad("WARN", "казахский без казахских букв", plain[:70])

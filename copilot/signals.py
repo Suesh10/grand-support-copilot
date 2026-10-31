@@ -32,6 +32,7 @@ PAYMENT_RE = re.compile(
 
 # Многоязычная часть маркера апелляции: её используют и защита, и классификатор.
 APPEAL_WORLD = (
+    r"амнисти|снимите (мут|варн|джейл|jail)|"
     r"банды?\s+(алып|ашыңыз|ашып|шеш)|бантан шығар|жаза(м|ны|мды)\s+алып|бан.{0,15}(қате|неге)|неге бан|"
     r"bandan chiqar|ban\w*\s+(yech|och|olib)|nohaq|jazo\w*\s+(olib|bekor)|"
     r"\bunban|\bappeal|remove.{0,10}\bban|wrongly banned|banned for no reason|"

@@ -230,7 +230,7 @@ function toTicket(x) {
     ref: rule ? rule.ref : null, chips: chips.length ? chips : null,
     draft: tr.draft_reply.text, original: tr.draft_reply.text, human: tr.reasons,
     series: x.series > 1 ? nick : null, profiles: x.profiles || {}, proposal: x.proposal, history: x.history,
-    duplicate: x.duplicate, shows: x.shows,
+    duplicate: x.duplicate, shows: x.shows, article: x.article,
   };
 }
 
@@ -831,6 +831,7 @@ function Ticket({ t, editing, generating, onGenerate, onType, seriesCount, nudge
     <//>
     </div>
     <${Trace} t=${t} onType=${onType} />
+    ${t.article && html`<p class="text-[15px] text-mute">Статья поддержки: <a class="underline" href=${t.article.url} target="_blank" rel="noopener">${t.article.title}</a></p>`}
     ${!t.appealOf && t.msgs.some((m) => m.role === "reported_player") && html`<p class="text-[15px] text-mute">По этой жалобе есть апелляция: она во вкладке «Апелляции и админы».</p>`}
     ${t.human.length > 0 && html`<p class="reason"><${UserRound} size=${18} class="flex-none mt-[2px]" /><span class="min-w-0"><b>Нужен человек: </b>${t.human.filter((r) => !t.proposal || !r.startsWith("исход предложен")).join("; ")}.</span></p>`}
     <section class=${"card draft-card" + (editing ? " editing" : "")}>

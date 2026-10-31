@@ -63,6 +63,21 @@ def term_is_quoted(text: str, refs: list[str]) -> bool:
     return all(m.group(0) in rules for m in PUNISH_TERM_RE.finditer(text))
 
 
+ADMIN_BIAS_RE = re.compile(r"злоупотреб|предвзят|необъектив|превыша", re.I)
+DECISION_NUMBER_RE = re.compile(r"(№|#|номер)\s*\d|\b\d{5,}\b")
+
+
+def appeal_hint(text: str) -> str:
+    """Что требует статья об апелляциях: просим только то, чего в обращении нет, и говорим, где ждать ответ."""
+    missing = [what for what, found in (("ник администратора", NICK_RE.search(text)), ("номер решения", DECISION_NUMBER_RE.search(text)))
+               if not found]
+    hint = f" Чтобы ускорить проверку, укажите {' и '.join(missing)}." if missing else ""
+    hint += " Ответ придёт в разделе «Жалобы» в лаунчере."
+    if ADMIN_BIAS_RE.search(text):
+        hint += " Если сомневаетесь в беспристрастности администратора, напишите куратору сервера: контакты есть в официальном Discord проекта."
+    return hint
+
+
 def proposal_draft(lang: str, category: str, verdict: str | None, nick: str | None, refs: list[str], text: str) -> dict | None:
     """Черновик по существу: предложенное решение или «на проверке» с ником и пунктом."""
     lang = lang if lang in templates.PROPOSALS else "ru"
@@ -79,6 +94,8 @@ def proposal_draft(lang: str, category: str, verdict: str | None, nick: str | No
     term = pick_punishment(topic, text) if topic and lang == "ru" else None
     filled = table[key].format(who=named.format(nick=nick) if nick else anonymous, by=by, term=f": {term}" if term else "",
                                on=templates.ON_NICK.get(lang, "").format(nick=nick) if nick else "")
+    if lang == "ru" and key == "appeal_review":
+        filled += appeal_hint(text)
     return {"lang": lang, "text": filled, "cited": [topic] if topic and "{by}" in table[key] else []}
 
 
