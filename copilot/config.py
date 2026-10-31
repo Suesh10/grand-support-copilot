@@ -22,4 +22,3 @@ GEMINI_API_KEY = os.getenv("GEMINI_API_KEY", "")
 LLM_MODEL = os.getenv("COPILOT_LLM_MODEL", "gemini-3.5-flash-lite")
 # offline — черновик без LLM (из шаблонов), auto — LLM если есть ключ.
 LLM_MODE = os.getenv("COPILOT_LLM_MODE", "auto")
-LLM_NO_THINKING = os.getenv("COPILOT_LLM_NO_THINKING", "1") == "1"
