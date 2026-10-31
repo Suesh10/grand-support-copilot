@@ -17,7 +17,7 @@ from fastapi import APIRouter, HTTPException
 from fastapi.responses import FileResponse
 from pydantic import BaseModel, Field
 
-from . import config, llm, reputation, retrieve
+from . import config, learn, llm, reputation, retrieve
 from .draft import handoff_draft
 from .extract import spans
 from .normalize import normalize
@@ -72,6 +72,7 @@ def load_queue() -> tuple:
 @lru_cache(maxsize=1)
 def _load_queue() -> tuple:
     llm.use_cache()
+    learn.activate()
     tickets = raw_tickets()
     series = Counter(t.get("reported_nick") for t in tickets if t.get("reported_nick") and not t.get("appeal_of"))
     items = []
@@ -188,6 +189,24 @@ def api_generate(ticket_id: str, req: GenerateRequest) -> dict:
             "reasons": result["reasons"], "source": meta.get("draft_source"), "llm_error": meta.get("llm_error")}
 
 
+def relearn(fb: Feedback, closed: set) -> list[dict]:
+    """Запомнить правку и сразу обновить похожие обращения в очереди: админ видит, что сервис учится."""
+    ticket = next((t for t in raw_tickets() if t.get("ticket_id") == fb.ticket_id), None)
+    if ticket is None or not fb.category:
+        return []
+    item = next((x for x in load_queue() if x["id"] == fb.ticket_id), None)
+    lang = item["triage"]["lang"] if item else "ru"
+    learn.add(fb.ticket_id, player_text(ticket_to_request(ticket)["messages"]), fb.draft_after, fb.category, lang, fb.nick)
+    updated = []
+    for t in raw_tickets():
+        if t.get("ticket_id") in closed or t.get("ticket_id") == fb.ticket_id or t.get("appeal_of"):
+            continue
+        pred, meta = triage_full(ticket_to_request(t))
+        if meta["draft_source"] == "lesson":
+            updated.append({"id": t.get("ticket_id"), "draft": pred["draft_reply"]["text"]})
+    return updated
+
+
 @router.post("/api/feedback")
 def api_feedback(fb: Feedback) -> dict:
     FEEDBACK_PATH.parent.mkdir(parents=True, exist_ok=True)
@@ -202,6 +221,10 @@ def api_feedback(fb: Feedback) -> dict:
             items.append({"ticket_id": fb.ticket_id, "nick": fb.nick, "category": fb.category, "action": fb.action,
                           "reply": fb.draft_after, "closed_at": record["ts"], "review_seconds": fb.review_seconds})
         write_archive(items)
+    if fb.action == "undo":
+        learn.remove(fb.ticket_id)
+    if fb.action == "send" and record["edited"]:
+        return {"ok": True, "learned": relearn(fb, {x["ticket_id"] for x in items})}
     return {"ok": True}
 
 

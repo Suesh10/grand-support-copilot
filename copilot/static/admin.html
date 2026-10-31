@@ -182,9 +182,9 @@ const VERDICTS = [
 
 const postJson = (url, body) => fetch(url, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
 
-/* Действие админа и правка черновика — обучающий сигнал, пишется в feedback.jsonl. */
+/* Действие админа и правка черновика — обучающий сигнал: ответ сервера называет обращения, которые он обновил. */
 function log(t, action) {
-  postJson("/api/feedback", { ticket_id: String(t.id), action, draft_before: t.original || "", draft_after: t.draft || "", category: t.cat || "", ai_category: t.aiCat || "", priority: "p" + t.p, reported_hash: t.reportedHash || null, nick: t.facts.nick, review_seconds: t.openedAt ? Math.round((Date.now() - t.openedAt) / 1000) : null }).catch(() => {});
+  return postJson("/api/feedback", { ticket_id: String(t.id), action, draft_before: t.original || "", draft_after: t.draft || "", category: t.cat || "", ai_category: t.aiCat || "", priority: "p" + t.p, reported_hash: t.reportedHash || null, nick: t.facts.nick, review_seconds: t.openedAt ? Math.round((Date.now() - t.openedAt) / 1000) : null }).then((r) => r.json()).catch(() => ({}));
 }
 
 function toTicket(x) {
@@ -685,6 +685,7 @@ function Ticket({ t, editing, generating, onGenerate, onType, seriesCount, nudge
     ${t.human.length > 0 && html`<p class="reason"><${UserRound} size=${18} class="flex-none mt-[2px]" /><span class="min-w-0"><b>Нужен человек: </b>${t.human.join("; ")}.</span></p>`}
     <section class=${"card draft-card" + (editing ? " editing" : "")}>
       <label for="draft" class="label block mb-1">Черновик ответа, ${LANG[t.lang]}${editing ? " · Ctrl+Enter отправить, Esc выйти" : ""}</label>
+      ${t.learned && html`<p class="forecast"><b>Учтена ваша правка</b><span class="text-mute">вы исправляли похожий ответ</span></p>`}
       ${t.proposal && html`<p class="forecast"><span>Прогноз ИИ: <b>${FORECAST[t.proposal]}</b></span>${ACCURACY[t.proposal] && html`<span class="text-mute">верно в ${ACCURACY[t.proposal]} проверенных случаев</span>`}<span class="text-mute">Вложений ИИ не видит</span></p>`}
       <textarea id="draft" ref=${areaRef} class="draft" rows="2" readOnly=${!editing} value=${t.draft} onChange=${(e) => onDraft(e.target.value)} onClick=${onEdit} onBlur=${onStopEdit}></textarea>
       ${(t.draftRu || NEEDS_RU.includes(t.lang)) && html`<${Translation} text=${t.draftRu || NO_RU} stale=${t.draftRu && t.edited} />`}
@@ -780,7 +781,15 @@ function App() {
     if (active.draft.includes(SLOT[active.lang])) { setNudge((n) => n + 1); return; }
     // Решение предложила модель, а вложений она не видит: одно случайное нажатие его не отправит.
     if (active.proposal && !active.armed) { patchActive((t) => ({ ...t, armed: true })); return; }
-    log(active, "send");
+    log(active, "send").then((r) => {
+      const learned = r.learned || [];
+      if (!learned.length) return;
+      setS((x) => ({ ...x, tickets: x.tickets.map((t) => {
+        const hit = learned.find((l) => l.id === t.id);
+        return hit && !t.edited ? { ...t, draft: hit.draft, original: hit.draft, learned: true } : t;
+      }) }));
+      setToast((old) => (old ? { ...old, msg: `Отправлено. Правка учтена в похожих: ${learned.length}` } : old));
+    });
     const next = leave(active, { sent: s.sent + 1, clean: s.clean + (active.edited ? 0 : 1) });
     act("Отправлено", () => next);
   };

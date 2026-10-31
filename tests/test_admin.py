@@ -246,3 +246,37 @@ def test_history_shows_only_counts():
     history = item["history"]
     assert history is None or (history["n"] >= 5 and all(isinstance(n, int) for _, n in history["outcomes"]))
     assert history is None or set(history) == {"n", "outcomes", "punishment"}  # тексты обращений наружу не выходят
+
+
+def test_edit_teaches_similar_ticket_and_undo_forgets(monkeypatch):
+    from copilot.pipeline import triage_full
+    client.get("/api/queue")
+    source = next(t for t in admin.raw_tickets() if t.get("ticket_id") == "demo-11")
+    twin = {**source, "ticket_id": "twin", "reported_nick": "Oleg_Smirnov",
+            "messages": [{**m, "text": m["text"].replace("Arman_Petrov", "Oleg_Smirnov")} for m in source["messages"]]}
+    monkeypatch.setattr(admin, "raw_tickets", lambda: (source, twin))
+    reply = "Приветствую. Игрок Arman_Petrov будет наказан по пункту 2.1 ОП за мат в чате."
+    body = {"ticket_id": "demo-11", "action": "send", "draft_before": "старый", "draft_after": reply,
+            "category": "complaint.insult", "nick": "Arman_Petrov"}
+    learned = client.post("/api/feedback", json=body).json()["learned"]
+    assert [x["id"] for x in learned] == ["twin"] and "Oleg_Smirnov" in learned[0]["draft"]
+    assert learn_has("demo-11")
+    client.post("/api/feedback", json={"ticket_id": "demo-11", "action": "undo"})
+    assert not learn_has("demo-11")
+    resp, meta = triage_full({"kind": "complaint", "messages": [{"text": source["messages"][0]["text"], "attachments": 1}]})
+    assert meta["draft_source"] != "lesson"
+
+
+def learn_has(ticket_id):
+    from copilot import learn
+    return any(x["ticket_id"] == ticket_id for x in learn._read())
+
+
+def test_lesson_with_invented_rule_is_ignored():
+    from copilot import learn
+    from copilot.pipeline import triage_full
+    client.get("/api/queue")
+    text = "Arman_Petrov оскорблял меня в чате, скрин есть"
+    learn.add("x", text, "Игрок наказан по пункту 99.9 ОП.", "complaint.insult", "ru", None)
+    _, meta = triage_full({"kind": "complaint", "messages": [{"text": text, "attachments": 1}]})
+    assert "99.9" not in meta.get("cited_full", [])

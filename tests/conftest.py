@@ -12,11 +12,13 @@ from copilot import config  # noqa: E402
 @pytest.fixture(autouse=True)
 def isolated_state(tmp_path, monkeypatch):
     """Ни один тест не пишет в настоящий artifacts/: там живое состояние интерфейса."""
-    from copilot import admin, reputation
+    from copilot import admin, learn, llm, reputation
 
     monkeypatch.setattr(admin, "ARCHIVE_PATH", tmp_path / "archive.json")
     monkeypatch.setattr(admin, "DELETED_PATH", tmp_path / "deleted_tickets.json")
     monkeypatch.setattr(admin, "FEEDBACK_PATH", tmp_path / "feedback.jsonl")
+    monkeypatch.setattr(learn, "LESSONS_PATH", tmp_path / "lessons.json")
+    monkeypatch.setattr(llm, "CACHE_PATH", tmp_path / "llm_cache.json")
     monkeypatch.setattr(reputation, "NOTES_PATH", tmp_path / "admin_notes.json")
     monkeypatch.setattr(reputation, "MEMORY_PATH", tmp_path / "memory.json")
 

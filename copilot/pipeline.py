@@ -4,12 +4,12 @@ import logging
 import re
 
 from . import classify as clf
-from . import guard, llm, model, rag, retrieve, templates
+from . import guard, learn, llm, model, rag, retrieve, templates
 from .draft import (INVENTED_FACT_RE, adapt_reply, handoff_draft, offline_draft, proposal_draft, retrieval_draft,
                     strip_foreign_details)
 from .extract import extract
 from .normalize import detect_lang, normalize
-from .rules import filter_valid, short_ref
+from .rules import filter_valid, parse_refs, short_ref
 
 ALWAYS_TEMPLATE = {"report.account", "report.payment"}
 
@@ -122,6 +122,13 @@ def triage_full(request: dict, verdict_override: str | None = None) -> tuple[dic
     proposed = not verdict_override and facts["has_evidence"] and verdict in PROPOSE_FROM
     refs = rag.candidates(category, verdict, text, facts["rule_refs"])
     allowed = set(refs)
+    # Админ уже исправлял такой ответ: его правка важнее шаблона и догадок модели.
+    lesson = None if verdict_override else learn.find(text, category, lang)
+    if lesson and draft is None:
+        reply = adapt_reply(lesson["reply"], lesson.get("nick"), facts["nickname"])
+        mentioned = parse_refs(reply, default_section="ОП")
+        if all(r in rag.load_points() for r in mentioned):
+            draft, meta["draft_source"] = {"lang": lang, "text": reply, "cited": mentioned}, "lesson"
     if draft is None and llm.enabled():
         examples = templates.style_examples(lang, kind, verdict) + [
             adapt_reply(c["reply"], c.get("reported_nick"), facts["nickname"])
