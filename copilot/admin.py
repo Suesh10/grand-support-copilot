@@ -6,10 +6,12 @@
 
 import json
 import os
+import threading
 import time
 from collections import Counter
 from functools import lru_cache
 from pathlib import Path
+from typing import Literal
 
 from fastapi import APIRouter, HTTPException
 from fastapi.responses import FileResponse
@@ -31,6 +33,8 @@ ARCHIVE_PATH = config.ARTIFACTS_DIR / "archive.json"
 DELETED_PATH = config.ARTIFACTS_DIR / "deleted_tickets.json"
 RETENTION_DAYS = 30  # через сколько дней сайт предлагает удалить, но сам не удаляет
 PRIORITY_ORDER = {"p0": 0, "p1": 1, "p2": 2, "p3": 3}
+_queue_lock = threading.Lock()  # страница и фоновый прогрев не должны считать очередь дважды
+_files_lock = threading.Lock()  # два быстрых действия админа не должны затирать друг друга
 GENERATE_VERDICTS = {"approved", "need_evidence", "rejected", "invalid_format", "duplicate"}
 
 
@@ -59,8 +63,14 @@ def raw_tickets() -> tuple:
     return (*tickets, *filter(None, map(appeal_from, tickets)))
 
 
-@lru_cache(maxsize=1)
 def load_queue() -> tuple:
+    with _queue_lock:
+        return _load_queue()
+
+
+@lru_cache(maxsize=1)
+def _load_queue() -> tuple:
+    llm.use_cache()
     tickets = raw_tickets()
     series = Counter(t.get("reported_nick") for t in tickets if t.get("reported_nick") and not t.get("appeal_of"))
     items = []
@@ -108,7 +118,7 @@ def read_deleted() -> list[str]:
 
 class Feedback(BaseModel):
     ticket_id: str
-    action: str  # send | edit | escalate | undo | merge
+    action: Literal["send", "edit", "escalate", "undo", "merge", "auto_ok"]
     draft_before: str = ""
     draft_after: str = ""
     category: str = ""  # вид обращения: админ мог поменять то, что определил ИИ
@@ -132,7 +142,7 @@ def api_queue() -> dict:
     items = [{**x, "profiles": {"reporter": reputation.profile(x["reporter_hash"]),
                                 "reported": reputation.profile(x["reported_hash"])}}
              for x in load_queue() if x["id"] not in closed]
-    return {"items": items, "llm": llm.enabled(), "notes": reputation.read_notes()}
+    return {"items": items, "llm": llm.status(), "notes": reputation.read_notes()}
 
 
 class TranslateRequest(BaseModel):
@@ -170,15 +180,16 @@ def api_generate(ticket_id: str, req: GenerateRequest) -> dict:
 def api_feedback(fb: Feedback) -> dict:
     FEEDBACK_PATH.parent.mkdir(parents=True, exist_ok=True)
     record = {**fb.model_dump(), "edited": fb.draft_before != fb.draft_after, "ts": int(time.time())}
-    with open(FEEDBACK_PATH, "a", encoding="utf-8") as f:
-        f.write(json.dumps(record, ensure_ascii=False) + "\n")
     if fb.action == "send" and fb.category.startswith("complaint."):
         reputation.remember(fb.reported_hash, fb.category)
-    items = [x for x in read_archive() if x["ticket_id"] != fb.ticket_id]
-    if fb.action in ("send", "escalate", "merge"):
-        items.append({"ticket_id": fb.ticket_id, "nick": fb.nick, "category": fb.category, "action": fb.action,
-                      "reply": fb.draft_after, "closed_at": record["ts"], "review_seconds": fb.review_seconds})
-    write_archive(items)
+    with _files_lock:
+        with open(FEEDBACK_PATH, "a", encoding="utf-8") as f:
+            f.write(json.dumps(record, ensure_ascii=False) + "\n")
+        items = [x for x in read_archive() if x["ticket_id"] != fb.ticket_id]
+        if fb.action in ("send", "escalate", "merge"):
+            items.append({"ticket_id": fb.ticket_id, "nick": fb.nick, "category": fb.category, "action": fb.action,
+                          "reply": fb.draft_after, "closed_at": record["ts"], "review_seconds": fb.review_seconds})
+        write_archive(items)
     return {"ok": True}
 
 

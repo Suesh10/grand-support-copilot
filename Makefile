@@ -13,6 +13,8 @@ export COPILOT_DATA_DIR := $(DATA)
 IN ?= examples/sample_tickets.jsonl
 OUT ?= artifacts/pred.jsonl
 PORT ?= 8000
+# Входа в админку нет, поэтому наружу она не открывается. В закрытой сети: make serve HOST=0.0.0.0
+HOST ?= 127.0.0.1
 MODEL := artifacts/classifier.joblib
 
 .PHONY: install train models serve predict eval examples audit test
@@ -37,7 +39,7 @@ models:
 	fi
 
 serve: models
-	$(PY) -m uvicorn copilot.api:app --host 0.0.0.0 --port $(PORT)
+	$(PY) -m uvicorn copilot.api:app --host $(HOST) --port $(PORT)
 
 predict: models
 	@mkdir -p $(dir $(OUT))

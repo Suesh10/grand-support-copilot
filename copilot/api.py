@@ -1,5 +1,7 @@
 """HTTP-сервис: POST /triage по контракту из ТЗ."""
 
+import logging
+import threading
 from contextlib import asynccontextmanager
 from pathlib import Path
 
@@ -9,11 +11,12 @@ from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 
 from . import __version__, llm, model, reputation, retrieve
-from .admin import router as admin_router
+from .admin import load_queue, router as admin_router
 from .dedupe import Deduper
 from .pipeline import triage
 from .rules import load_points
 
+logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s")
 _dedupe = Deduper()
 
 
@@ -22,6 +25,8 @@ async def lifespan(_: FastAPI):
     # Прогрев: модели и индекс грузятся при старте, а не на первом запросе (p95 ≤ 5 с).
     load_points(), model.load(), retrieve.load(), reputation.load()
     triage({"kind": "report", "messages": [{"text": "прогрев"}]})
+    # Очередь считается в фоне: страница админа открывается сразу, а сервис уже принимает /triage.
+    threading.Thread(target=load_queue, daemon=True).start()
     yield
 
 
@@ -57,7 +62,7 @@ def home() -> RedirectResponse:
 def health() -> dict:
     return {"status": "ok", "version": __version__,
             "model_loaded": model.load() is not None, "index_loaded": retrieve.load() is not None,
-            "llm": llm.enabled()}
+            "llm": llm.status()}
 
 
 @app.post("/triage")

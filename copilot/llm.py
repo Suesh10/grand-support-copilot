@@ -7,7 +7,10 @@ LLM получает только пункты правил, которые ум
 конвейер переходит в офлайн-режим.
 """
 
+import hashlib
 import json
+import logging
+import threading
 import time
 from concurrent.futures import ThreadPoolExecutor
 
@@ -48,6 +51,7 @@ def _client():
     return genai.Client(api_key=config.GEMINI_API_KEY)
 
 
+log = logging.getLogger(__name__)
 _CLIENT = None
 _POOL = ThreadPoolExecutor(max_workers=8)
 TIMEOUT_S = 4.0  # сервис: p95 по ТЗ не больше 5 с
@@ -65,19 +69,83 @@ def enabled() -> bool:
     return config.LLM_MODE != "offline" and bool(config.GEMINI_API_KEY)
 
 
+# Здоровье LLM видно админу: иначе сбой незаметен, черновики просто становятся шаблонными.
+_health = {"ok": 0, "errors": 0, "last_error": None, "last_error_at": None, "last_ok_at": None}
+
+
+def _mark(error: Exception | None) -> None:
+    if error is None:
+        _health["ok"] += 1
+        _health["last_ok_at"] = time.time()
+        return
+    _health["errors"] += 1
+    _health["last_error"] = f"{type(error).__name__}: {str(error)[:80]}"
+    _health["last_error_at"] = time.time()
+    log.warning("LLM: %s", _health["last_error"])
+
+
+def status() -> dict:
+    """off: ключа нет; down: последний запрос упал; ok: работает или ещё не вызывался."""
+    last_ok, last_error = _health["last_ok_at"] or 0, _health["last_error_at"] or 0
+    state = "off" if not enabled() else "down" if last_error > last_ok else "ok"
+    return {"state": state, "last_error": _health["last_error"] if state == "down" else None,
+            "calls_ok": _health["ok"], "calls_failed": _health["errors"]}
+
+
+# Кэш для админки: перезапуск сервера не должен заново тратить лимит на те же обращения.
+# Ключ это полный текст запроса: поменялся промт или данные, значит, запрос пойдёт заново.
+# make eval и make predict идут мимо кэша, иначе задержка и стоимость были бы неправдой.
+CACHE_PATH = config.ARTIFACTS_DIR / "llm_cache.json"
+_cache_on = False
+_cache_lock = threading.Lock()
+
+
+def use_cache() -> None:
+    global _cache_on
+    _cache_on = True
+
+
+def _cache_key(contents: str, system: str) -> str:
+    return hashlib.sha256(f"{config.LLM_MODEL}\n{system}\n{contents}".encode("utf-8")).hexdigest()
+
+
+def _cache_read(key: str) -> dict | None:
+    if not _cache_on or not CACHE_PATH.exists():
+        return None
+    with _cache_lock:
+        return json.loads(CACHE_PATH.read_text(encoding="utf-8")).get(key)
+
+
+def _cache_write(key: str, value: dict) -> None:
+    if not _cache_on:
+        return
+    with _cache_lock:
+        cache = json.loads(CACHE_PATH.read_text(encoding="utf-8")) if CACHE_PATH.exists() else {}
+        cache[key] = value
+        CACHE_PATH.parent.mkdir(parents=True, exist_ok=True)
+        CACHE_PATH.write_text(json.dumps(cache, ensure_ascii=False), encoding="utf-8")
+
+
 def translate(text: str) -> str | None:
     """Перевод на русский для админа (подсказка в интерфейсе). None — если LLM недоступен."""
     global _CLIENT
     if not enabled() or not text.strip():
         return None
+    contents = f"Переведи на русский. Ответь только переводом, без пояснений.\n\n{text[:800]}"
+    key = _cache_key(contents, "")
+    cached = _cache_read(key)
+    if cached:
+        return cached["text"]
     try:
         _CLIENT = _CLIENT or _client()
-        future = _POOL.submit(
-            _CLIENT.models.generate_content, model=config.LLM_MODEL,
-            contents=f"Переведи на русский. Ответь только переводом, без пояснений.\n\n{text[:800]}")
-        return future.result(timeout=TIMEOUT_S).text.strip()
-    except Exception:
+        future = _POOL.submit(_CLIENT.models.generate_content, model=config.LLM_MODEL, contents=contents)
+        translated = future.result(timeout=TIMEOUT_S).text.strip()
+    except Exception as e:  # noqa: BLE001
+        _mark(e)
         return None
+    _mark(None)
+    _cache_write(key, {"text": translated})
+    return translated
 
 
 PUNISH_SLOT = {"ru": "[наказание]", "kk": "[жаза]", "uz": "[jazo]"}
@@ -138,6 +206,10 @@ def draft(kind: str, lang: str, category: str, verdict: str | None, text: str,
 
     prompt = build_prompt(kind, lang, category, verdict, text, nickname, refs, examples, decided, proposed)
     started = time.perf_counter()
+    key = _cache_key(prompt, SYSTEM)
+    cached = _cache_read(key)
+    if cached:
+        return _parse(cached["text"], refs, lang, cached["tokens_in"], cached["tokens_out"], started)
     try:
         _CLIENT = _CLIENT or _client()
         for attempt in range(ATTEMPTS):
@@ -155,18 +227,27 @@ def draft(kind: str, lang: str, category: str, verdict: str | None, text: str,
                 )
                 # API не принимает таймаут меньше 10 с, а p95 по ТЗ ≤ 5 с — ограничиваем сами.
                 resp = future.result(timeout=TIMEOUT_S)
-                data = json.loads(resp.text)
+                json.loads(resp.text)
                 break
             except Exception:
                 if attempt == ATTEMPTS - 1:
                     raise
                 time.sleep(BACKOFF_S)
     except Exception as e:  # сеть, лимиты, таймаут, невалидный JSON — уходим в офлайн
+        _mark(e)
         return {"_error": f"{type(e).__name__}: {str(e)[:120]}"}
 
+    _mark(None)
     usage = resp.usage_metadata
     tokens_in = usage.prompt_token_count or 0
     tokens_out = (usage.candidates_token_count or 0) + (getattr(usage, "thoughts_token_count", 0) or 0)
+    _cache_write(key, {"text": resp.text, "tokens_in": tokens_in, "tokens_out": tokens_out})
+    return _parse(resp.text, refs, lang, tokens_in, tokens_out, started)
+
+
+def _parse(raw: str, refs: list[str], lang: str, tokens_in: int, tokens_out: int, started: float) -> dict:
+    """Ответ модели → черновик. Цитаты проверяются и для ответа из кэша."""
+    data = json.loads(raw)
     reply_text = str(data.get("text", "")).strip()
     if lang in ("ru", "kk"):
         reply_text = fix_mixed_script(reply_text)

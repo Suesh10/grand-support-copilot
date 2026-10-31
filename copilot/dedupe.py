@@ -13,6 +13,7 @@ from .normalize import normalize
 WINDOW_COMPLAINT_H = 1
 WINDOW_REPORT_H = 1
 MIN_REPORT_TEXT = 5
+MAX_SEEN = 200_000  # окно всего час: старые записи не нужны, а сервис работает неделями
 
 
 def _parse(ts: str | None) -> datetime | None:
@@ -41,6 +42,8 @@ class Deduper:
                 return False
             key, window = (reporter, "r", text), WINDOW_REPORT_H
         now = _parse(ticket.get("created_at"))
+        if len(self.seen) > MAX_SEEN:
+            self.seen.clear()
         known = key in self.seen
         before = self.seen.get(key)
         self.seen[key] = now

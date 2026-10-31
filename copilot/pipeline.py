@@ -89,7 +89,7 @@ def triage_full(request: dict, verdict_override: str | None = None) -> tuple[dic
         verdict_override = "duplicate"
 
     reasons = guard.check(category, text)
-    if confidence < LOW_CONFIDENCE:
+    if confidence < LOW_CONFIDENCE and category != "report.offtopic":
         reasons.append("сервис не уверен в категории")
     needs_human = bool(reasons)
 

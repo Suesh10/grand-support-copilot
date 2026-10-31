@@ -7,7 +7,7 @@ os.environ.setdefault("COPILOT_LLM_MODE", "offline")
 
 from fastapi.testclient import TestClient  # noqa: E402
 
-from copilot import admin  # noqa: E402
+from copilot import admin, llm  # noqa: E402
 from copilot.api import app  # noqa: E402
 
 client = TestClient(app)
@@ -197,3 +197,37 @@ def test_generate_under_admin_verdict():
     assert r.status_code == 200 and body["draft_reply"]["text"]
     assert client.post("/api/generate/demo-01", json={"verdict": "ban_everyone"}).status_code == 422
     assert client.post("/api/generate/nope", json={"verdict": "approved"}).status_code == 404
+
+
+def test_llm_cache_saves_quota(tmp_path, monkeypatch):
+    calls = []
+
+    class Models:
+        def generate_content(self, **kwargs):
+            calls.append(kwargs)
+            return type("R", (), {"text": "перевод"})()
+
+    monkeypatch.setattr(llm, "enabled", lambda: True)
+    monkeypatch.setattr(llm, "_CLIENT", type("C", (), {"models": Models()})())
+    monkeypatch.setattr(llm, "CACHE_PATH", tmp_path / "cache.json")
+    monkeypatch.setattr(llm, "_cache_on", True)
+    assert llm.translate("salom") == "перевод" and llm.translate("salom") == "перевод"
+    assert len(calls) == 1
+
+
+def test_llm_outage_is_visible(monkeypatch):
+    class Models:
+        def generate_content(self, **kwargs):
+            raise RuntimeError("429 RESOURCE_EXHAUSTED")
+
+    monkeypatch.setattr(llm, "enabled", lambda: True)
+    monkeypatch.setattr(llm, "_CLIENT", type("C", (), {"models": Models()})())
+    monkeypatch.setattr(llm, "_cache_on", False)
+    monkeypatch.setattr(llm, "_health", {"ok": 0, "errors": 0, "last_error": None, "last_error_at": None, "last_ok_at": None})
+    assert llm.translate("salom") is None
+    assert llm.status()["state"] == "down" and "429" in llm.status()["last_error"]
+    assert client.get("/health").json()["llm"]["state"] == "down"
+
+
+def test_unknown_action_is_rejected():
+    assert client.post("/api/feedback", json={"ticket_id": "x", "action": "взломать"}).status_code == 422
